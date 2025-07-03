@@ -9,9 +9,11 @@ apt-get install -y \
     software-properties-common unzip zip zlib1g-dev g++
 apt-get clean
 pip install -U pip setuptools wheel
-pip install numpy dm-env
+pip install numpy
+pip install git+git://github.com/deepmind/dm_env.git
 
-wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.17.0/bazelisk-linux-amd64 -O bazelisk
+#wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.17.0/bazelisk-linux-amd64 -O bazelisk
+wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.26.0/bazelisk-linux-arm64 -O bazelisk
 chmod +x bazelisk
 mv bazelisk /usr/local/bin/bazel
 
