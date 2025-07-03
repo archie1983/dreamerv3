@@ -10,7 +10,7 @@ apt-get install -y \
 apt-get clean
 pip install -U pip setuptools wheel
 pip install numpy
-pip install git+git://github.com/deepmind/dm_env.git
+pip install git+https://github.com/google-deepmind/dm_env
 
 #wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.17.0/bazelisk-linux-amd64 -O bazelisk
 wget -q https://github.com/bazelbuild/bazelisk/releases/download/v1.26.0/bazelisk-linux-arm64 -O bazelisk
