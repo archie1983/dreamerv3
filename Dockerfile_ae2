@@ -29,7 +29,7 @@ RUN pip install procgen_mirror
 RUN pip install crafter
 RUN pip install dm_control
 RUN pip install memory_maze
-ENV MUJOCO_GL=egl
+ENV MUJOCO_GL=glfw
 RUN apt-get update && apt-get install -y openjdk-8-jdk && apt-get clean
 RUN pip install https://github.com/danijar/minerl/releases/download/v0.4.4-patched/minerl_mirror-0.4.4-cp311-cp311-linux_x86_64.whl
 RUN chown -R 1000:root /venv/lib/python3.11/site-packages/minerl
@@ -43,6 +43,18 @@ RUN pip install -r requirements.txt
 RUN apt-get update && apt-get install -y \
   x11-apps x11vnc xvfb \
   && apt-get clean
+
+RUN apt-get update && apt-get install -y \
+    mesa-utils libglx0 libgl1 libglfw3 libglew-dev \
+    libxinerama-dev libxcursor-dev libxi-dev \
+    xauth x11-xserver-utils \
+    && apt-get clean
+
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV NVIDIA_VISIBLE_DEVICES=all
+
+RUN touch /root/.Xauthority && \
+    chmod 600 /root/.Xauthority
 
 # Source
 RUN mkdir /app

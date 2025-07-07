@@ -34,16 +34,27 @@ class Agent(embodied.jax.Agent):
     self.obs_space = obs_space
     self.act_space = act_space
     self.config = config
-
+    print("AE: obs_space: ", obs_space)
+    print("AE: act_space: ", act_space)
     exclude = ('is_first', 'is_last', 'is_terminal', 'reward')
     enc_space = {k: v for k, v in obs_space.items() if k not in exclude}
     dec_space = {k: v for k, v in obs_space.items() if k not in exclude}
+    print("AE: config.enc.typ, enc_space, config.enc[config.enc.typ]: ", config.enc.typ, enc_space, config.enc[config.enc.typ])
+
+    # AE: This is where we start defining all our neural nets. Just defining, not creating yet.
+    # Encoder enc will be rssm.Encoder, which has __init__ function and __call__ function, where we initialize and create
+    # the actual neural net (in this case a series of Conv2d layers followed by a Conv normalization layer).
     self.enc = {
         'simple': rssm.Encoder,
     }[config.enc.typ](enc_space, **config.enc[config.enc.typ], name='enc')
+    print("AE: self.enc: ", self.enc, config.enc.typ, enc_space, config.enc[config.enc.typ])
+
+    # AE: Similarly dynamic part of RSSM is defined in rssm.RSSM. This is essentially an MLP(?)
     self.dyn = {
         'rssm': rssm.RSSM,
     }[config.dyn.typ](act_space, **config.dyn[config.dyn.typ], name='dyn')
+
+    # Decoder - the thing that can extract picture back from RSSM latent space. It's a linear network.
     self.dec = {
         'simple': rssm.Decoder,
     }[config.dec.typ](dec_space, **config.dec[config.dec.typ], name='dec')
@@ -54,14 +65,19 @@ class Agent(embodied.jax.Agent):
 
     scalar = elements.Space(np.float32, ())
     binary = elements.Space(bool, (), 0, 2)
+
+    # AE: Reward predictor (a.k.a the Critic) - the MLP which we train with the smart MDP style looking ahead.
     self.rew = embodied.jax.MLPHead(scalar, **config.rewhead, name='rew')
+    # AE: Need to refresh on what con is. Maybe the one that predicts the end of the episode?
     self.con = embodied.jax.MLPHead(binary, **config.conhead, name='con')
 
     d1, d2 = config.policy_dist_disc, config.policy_dist_cont
     outs = {k: d1 if v.discrete else d2 for k, v in act_space.items()}
+    # AE: Policy net??
     self.pol = embodied.jax.MLPHead(
         act_space, outs, **config.policy, name='pol')
 
+    # AE: Our Actor net - an MLP.
     self.val = embodied.jax.MLPHead(scalar, **config.value, name='val')
     self.slowval = embodied.jax.SlowModel(
         embodied.jax.MLPHead(scalar, **config.value, name='slowval'),
@@ -161,6 +177,11 @@ class Agent(embodied.jax.Agent):
     metrics = {}
 
     # World model
+    # AE: This is where we actually build the Encoder CNN model - put the layers into memory
+    # obs here appear to be batched in batches of 64. In fact, the actual shape of batch counter is
+    # (1, 64), so the observations become (1, 64, 64, 64, 3) from the initial shape of image (64, 64, 3).
+    # When we call self.enc(...), we will create the encoder model from the configuration that was initialized
+    # in enc __init__ function.
     enc_carry, enc_entries, tokens = self.enc(
         enc_carry, obs, reset, training)
     dyn_carry, dyn_entries, los, repfeat, mets = self.dyn.loss(

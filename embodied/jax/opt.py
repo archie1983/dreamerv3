@@ -8,6 +8,8 @@ import optax
 from . import internal
 from . import nets
 
+import traceback
+
 f32 = jnp.float32
 i32 = jnp.int32
 sg = jax.lax.stop_gradient
@@ -46,8 +48,12 @@ class Optimizer(nj.Module):
       loss *= 1 / self.grad_scale.read()
 
     counts = {k: math.prod(v.shape) for k, v in params.items()}
+    print("AE: counts = ", counts)
     if nj.creating():
       print(self._summarize_params(counts, self.summary_depth))
+
+    #traceback.print_stack()
+    exit(0)
 
     axes = internal.get_data_axes()
     if axes:

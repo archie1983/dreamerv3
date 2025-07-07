@@ -23,13 +23,15 @@ def main(argv=None):
   configs = elements.Path(folder / 'configs.yaml').read()
   configs = yaml.YAML(typ='safe').load(configs)
   parsed, other = elements.Flags(configs=['defaults']).parse_known(argv)
+  #print("AE parsed, other, argv: ", parsed, other, argv)
   config = elements.Config(configs['defaults'])
+
   for name in parsed.configs:
     config = config.update(configs[name])
   config = elements.Flags(config).parse(other)
   config = config.update(logdir=(
       config.logdir.format(timestamp=elements.timestamp())))
-
+  print("AE conf: ", config)
   if 'JOB_COMPLETION_INDEX' in os.environ:
     config = config.update(replica=int(os.environ['JOB_COMPLETION_INDEX']))
   print('Replica:', config.replica, '/', config.replicas)
@@ -211,6 +213,7 @@ def make_replay(config, folder, mode='train'):
 
 def make_env(config, index, **overrides):
   suite, task = config.task.split('_', 1)
+  #print("AE suite, task: ", suite, task)
   if suite == 'memmaze':
     from embodied.envs import from_gym
     import memory_maze  # noqa
@@ -236,6 +239,7 @@ def make_env(config, index, **overrides):
     module, cls = ctor.split(':')
     module = importlib.import_module(module)
     ctor = getattr(module, cls)
+    #print("AE module, cls, ctor: ", module, cls, ctor)
   kwargs = config.env.get(suite, {})
   kwargs.update(overrides)
   if kwargs.pop('use_seed', False):
