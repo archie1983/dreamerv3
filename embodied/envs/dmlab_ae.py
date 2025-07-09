@@ -8,6 +8,8 @@ import numpy as np
 
 import matplotlib.pyplot as plt
 
+from ai2_thor_model_training.training_data_extraction import RobotNavigationControl
+
 class AEDMLab():
 
   TOKENIZER = re.compile(r'([A-Za-z_]+|[^A-Za-z_ ]+)')
@@ -72,6 +74,7 @@ class AEDMLab():
         'reset': elements.Space(bool),
     }
 
+  # Advances the simulation using the selected action
   def step(self, action):
     if action['reset'] or self._done:
       self._env.reset(seed=self._random.randint(0, 2 ** 31 - 1))
@@ -82,6 +85,7 @@ class AEDMLab():
     self._done = not self._env.is_running()
     return self._obs(reward, is_last=self._done)
 
+  # Returns the observations from the last performed step
   def _obs(self, reward, is_first=False, is_last=False):
     if not self._done:
       self._current_image = self._env.observations()['RGB_INTERLEAVED']
@@ -94,6 +98,7 @@ class AEDMLab():
         is_last=is_last,
         is_terminal=is_last if self._episodic else False,
     )
+
     if self._text:
       obs['instr'] = self._current_instr
     return obs
@@ -175,14 +180,14 @@ if __name__ == "__main__":
 
     dml = AEDMLab("rooms_watermaze")
     print(dml.act_space)
-    for i in range(100): # do 10 actions
+    for i in range(10): # do 10 actions
         # select a random action from the action space
         act = {k: v.sample() for k, v in dml.act_space.items()}
         # Make sure this is not a terminal state
         act['reset'] = False
         # Feed the selected random action to the environment
         observation = dml.step(act)
-        print(observation)
+        #print(observation)
         plt.imshow(observation['image'])
         plt.pause(0.001)
         plt.draw()
@@ -191,9 +196,8 @@ if __name__ == "__main__":
     act = {k: v.sample() for k, v in dml.act_space.items()}
     act['reset'] = True
     observation = dml.step(act)
-    print(observation)
+    #print(observation)
 
     plt.imshow(observation['image'])
     plt.pause(0.001)
     plt.draw()
-
