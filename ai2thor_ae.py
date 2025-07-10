@@ -49,6 +49,10 @@ class AI2ThorEnv():
         # further points.
         self.initial_path_length = 0
 
+        # We will need to keep track of the target point that we want to reach because we will be re-planning path to it
+        # from all sorts of different points.
+        self.current_target_point = None
+
         self.habitat_id = level
 
         # Dreamer stuff
@@ -122,7 +126,7 @@ class AI2ThorEnv():
                 self.controller)  # This allows our control scripts to interact with AI2-THOR environment
         else:
             self.controller.reset(habitat)
-            self.reset_state()
+            #self.reset_state()
             self.rnc.reset_state()
             # self.rnc.set_controller(self.controller)
 
@@ -169,7 +173,8 @@ class AI2ThorEnv():
         path_planned = False
         while not path_planned:
             els = elements.Space(np.int32, (), 0, len(placements))
-            p = placements[int(els.sample())]
+            p = list(placements)[int(els.sample())]
+            #p = placements.pop()
 
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
@@ -192,13 +197,16 @@ class AI2ThorEnv():
                 print(f"ERROR: {e}")
                 continue
 
+            self.current_target_point = room_centre
             # print("PATH & PLAN: ", path_and_plan)
             path = path_and_plan[0]
             plan = path_and_plan[1]
             #self.prev_pose = thor_agent_pose(self.controller)  # This is where we are before the plan started
             # place_with_rtn
             # thor_pose_as_tuple(self.prev_pose)
-            self.initial_path_length = get_path_length(path, place_with_rtn)
+            print("AE poses: place_with_rtn: ", place_with_rtn, " p: ", p, " self.rnc.get_agent_pos_and_rotation(): ", self.rnc.get_agent_pos_and_rotation())
+            cur_pos = self.rnc.get_agent_pos_and_rotation()
+            self.initial_path_length = get_path_length(path, cur_pos)
 
             path_planned = True
 
@@ -227,11 +235,14 @@ class AI2ThorEnv():
 
     # This function will calculate path length to the desired point from the current position.
     def get_current_path_length(self):
-        cur_pose = thor_agent_pose(self.controller)
-        cur_path = self.get_path_to_target_point()
-        cur_path = get_path_length(cur_path, cur_pose)
+        #cur_pose = thor_agent_pose(self.controller)
+        cur_pose = self.rnc.get_agent_pos_and_rotation()
 
-        self.current_path_length = len(cur_path)
+        try:
+            [cur_path, _] = self.get_path_to_target_point(self.current_target_point)
+            self.current_path_length = get_path_length(cur_path, cur_pose)
+        except ValueError as e:
+            print("Path planning failed from ", cur_pose, " to: ", self.current_target_point, " Using previous current_path_length: ", self.current_path_length)
 
         return self.current_path_length
 
@@ -256,17 +267,17 @@ class AI2ThorEnv():
         raw_action = index_to_action(int(action['action']))
         # print(raw_action)
         #reward = self._env.step(raw_action, num_steps=self._repeat)
-        reward = self.current_reward()
         self.rnc.execute_action(raw_action)
+        reward = self.current_reward()
         self._done = self.have_we_arrived()
         return self._obs(reward, is_last=self._done)
 
     # Returns the observations from the last performed step
     def _obs(self, reward, is_first=False, is_last=False):
         if not self._done:
-            self._current_image = self._env.observations()['RGB_INTERLEAVED']
-            if self._text:
-                self._current_instr = self._embed(self._env.observations()['INSTR'])
+            #self._current_image = self._env.observations()['RGB_INTERLEAVED']
+            event = self.controller.last_event
+            self._current_image = event.cv2img
         obs = dict(
             image=self._current_image,
             reward=np.float32(reward),
@@ -274,9 +285,7 @@ class AI2ThorEnv():
             is_last=is_last,
             is_terminal=is_last if self._episodic else False,
         )
-
-        if self._text:
-            obs['instr'] = self._current_instr
+        print(reward)
         return obs
 
     def _embed(self, text):
@@ -292,7 +301,8 @@ class AI2ThorEnv():
         return zlib.crc32(token.encode('utf-8')) % self._vocab_buckets
 
     def close(self):
-        self._env.close()
+        if (self.controller != None):
+            self.controller.stop()
 
 if __name__ == "__main__":
     # AE: A word about actions:
@@ -336,6 +346,7 @@ if __name__ == "__main__":
         act['reset'] = False
         observation = dml.step(act)
 
+    dml.close()
 
     # dml = AI2ThorEnv("rooms_watermaze")
     # print(dml.act_space)
