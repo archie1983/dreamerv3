@@ -1,10 +1,14 @@
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+#os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 import functools
 import re
 import zlib
 
-import deepmind_lab
+import sys
+print('\n'.join(sys.path))
+
+#import deepmind_lab
+import embodied
 import elements
 import numpy as np
 
@@ -32,12 +36,12 @@ from thortils.navigation import get_shortest_path_to_object
 from PIL import Image
 
 
-class AI2ThorEnv():
+class AI2ThorEnv(embodied.Env):
     TOKENIZER = re.compile(r'([A-Za-z_]+|[^A-Za-z_ ]+)')
 
     def __init__(
             self, level, repeat=4, size=(64, 64), mode='train',
-            actions='popart', episodic=True, text=None, seed=None):
+            episodic=True, seed=None):
 
         # AE: AI2-Thor simulation stuff
         self.rnc = RobotNavigationControl()
@@ -63,7 +67,9 @@ class AI2ThorEnv():
 
         # Dreamer + AI2Thor
         self._actions = action_mapping
-        self._actions.pop("STOP")  # remove STOP action because that will be treated differently
+        print("AE:", self._actions)
+        if "STOP" in self._actions:
+            self._actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self._episodic = episodic
         self._random = np.random.RandomState(seed)
@@ -94,9 +100,9 @@ class AI2ThorEnv():
             'is_last': elements.Space(bool),
             'is_terminal': elements.Space(bool),
         }
-        if self._text:
-            spaces['instr'] = elements.Space(
-                np.float32, self._instr_length * self._embed_size)
+        #if self._text:
+        #    spaces['instr'] = elements.Space(
+        #        np.float32, self._instr_length * self._embed_size)
         return spaces
 
     @property
@@ -118,7 +124,8 @@ class AI2ThorEnv():
     ##
     def load_habitat(self, habitat_id):
         # load required habitat
-        habitat = self.atu.load_proctor_habitat(habitat_id)
+        print("AE: haba: ", habitat_id)
+        habitat = self.atu.load_proctor_habitat(int(habitat_id))
 
         # Launch a controller for the loaded habitat. If we already have a controller,
         # then reset it instead of loading a new one.

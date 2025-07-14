@@ -211,16 +211,16 @@ class Encoder(nj.Module):
     return {}
 
   def __call__(self, carry, obs, reset, training, single=False):
-    traceback.print_stack()
+    #traceback.print_stack()
     bdims = 1 if single else 2
     outs = []
     bshape = reset.shape
-    print("AE: bshape: ", bshape)
-    print("AE: carry: ", carry)
-    print("AE: obs: ", obs)
-    print("AE: reset: ", reset)
-    print("AE: training: ", training)
-    print("AE: self.depths: ", self.depths)
+    #print("AE: bshape: ", bshape)
+    #print("AE: carry: ", carry)
+    #print("AE: obs: ", obs)
+    #print("AE: reset: ", reset)
+    #print("AE: training: ", training)
+    #print("AE: self.depths: ", self.depths)
 
     if self.veckeys:
       vspace = {k: self.obs_space[k] for k in self.veckeys}

@@ -4,6 +4,9 @@ conda activate dreamer3
 
 set -e
 
+if [ ! -d "lab" ]; then
+  git clone https://github.com/google-deepmind/lab.git
+fi
 #git clone https://github.com/google-deepmind/lab.git
 cd lab
 
@@ -72,6 +75,10 @@ mv "${DEST}/_main/"* "${DEST}/"
 rmdir "${DEST}/_main"
 cd ..
 #rm -rf lab
+
+if [ -d "dmlab_data" ]; then
+  rm -rf dmlab_data
+fi
 
 mkdir dmlab_data
 cd dmlab_data

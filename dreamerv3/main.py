@@ -67,7 +67,12 @@ def main(argv=None):
       replay_context=config.replay_context,
   )
 
+  print("AE: config.script: ", config.script)
   if config.script == 'train':
+    # Now we will call the "train" function from embodied.run
+    # and we will pass function pointers to it as parameters. A function pointer for making agent, for replaying,
+    # for making environment, etc.
+    print("AE: calling TRAIN")
     embodied.run.train(
         bind(make_agent, config),
         bind(make_replay, config, 'replay'),
@@ -75,6 +80,7 @@ def main(argv=None):
         bind(make_stream, config),
         bind(make_logger, config),
         args)
+    print("AE: TRAIN Exited")
 
   elif config.script == 'train_eval':
     embodied.run.train_eval(
@@ -125,7 +131,9 @@ def main(argv=None):
   else:
     raise NotImplementedError(config.script)
 
-
+##
+# Crucially, make_agent calls make_env and invokes the environment.
+##
 def make_agent(config):
   from .agent import Agent
   env = make_env(config, 0)
@@ -217,6 +225,9 @@ def make_env(config, index, **overrides):
   if suite == 'memmaze':
     from embodied.envs import from_gym
     import memory_maze  # noqa
+  # Create a dictionaty called ctor and immediately select the environment
+  # from that dictionary as defined in suite. E.g., dmlab. This is so reminiscent of JAVA structure, is Danijar Hafner
+  # a JAVA guy?
   ctor = {
       'dummy': 'embodied.envs.dummy:Dummy',
       'gym': 'embodied.envs.from_gym:FromGym',
@@ -234,10 +245,14 @@ def make_env(config, index, **overrides):
       'bsuite': 'embodied.envs.bsuite:BSuite',
       'memmaze': lambda task, **kw: from_gym.FromGym(
           f'MemoryMaze-{task}-v0', **kw),
+      'ai2thorae': 'embodied.envs.ai2thor_ae:AI2ThorEnv',
   }[suite]
   if isinstance(ctor, str):
+    # Split the selected env string into components, e.g. it could be 'embodied.envs.dmlab:DMLab'
     module, cls = ctor.split(':')
+    # Load the selected module, e.g., embodied.envs.dmlab
     module = importlib.import_module(module)
+    # Now find the required class in that module, e.g., DMLab
     ctor = getattr(module, cls)
     #print("AE module, cls, ctor: ", module, cls, ctor)
   kwargs = config.env.get(suite, {})
@@ -246,16 +261,30 @@ def make_env(config, index, **overrides):
     kwargs['seed'] = hash((config.seed, index)) % (2 ** 32 - 1)
   if kwargs.pop('use_logdir', False):
     kwargs['logdir'] = elements.Path(config.logdir) / f'env{index}'
+  # Now call that class, instantiate it (e.g., DMLab class from embodied.envs.dmlab).
   env = ctor(task, **kwargs)
+  # Now use that instance of the environment class- wrap_env it and then return whatever it returns
+  print("AE: ENV:: ", env)
   return wrap_env(env, config)
 
-
+##
+# Essentially unifying data types and checking spaces (the building block data type of environments)
+# Not entirely sure the purpose of it, but it's probably important... and boring.
+##
 def wrap_env(env, config):
+  # Go through action space
   for name, space in env.act_space.items():
+    print("AE: ENV:: ", name, space)
+    # If action space is not discrete, then normalize it. Not sure what it means in practice.
     if not space.discrete:
       env = embodied.wrappers.NormalizeAction(env, name)
+      print("AE: Normalized ENV:: ", env, name)
+
   env = embodied.wrappers.UnifyDtypes(env)
+  print("AE: Post Unify Dtypes ENV:: ", env, name)
   env = embodied.wrappers.CheckSpaces(env)
+  print("AE: Post check spaces ENV:: ", env, name)
+
   for name, space in env.act_space.items():
     if not space.discrete:
       env = embodied.wrappers.ClipAction(env, name)

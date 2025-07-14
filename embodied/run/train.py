@@ -7,19 +7,29 @@ import numpy as np
 
 
 def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
-
+  print("AE: Making Agent")
   agent = make_agent()
+  print("AE: Making Replay")
   replay = make_replay()
+  print("AE: Making Logger")
   logger = make_logger()
 
   logdir = elements.Path(args.logdir)
+  print("AE: logdir: ", logdir)
   step = logger.step
+  print("AE: step: ", step)
   usage = elements.Usage(**args.usage)
+  print("AE: usage: ", usage)
   train_agg = elements.Agg()
+  print("AE: train_agg: ", train_agg)
   epstats = elements.Agg()
+  print("AE: epstats: ", epstats)
   episodes = collections.defaultdict(elements.Agg)
+  print("AE: episodes: ", episodes)
   policy_fps = elements.FPS()
+  print("AE: policy_fps: ", policy_fps)
   train_fps = elements.FPS()
+  print("AE: train_fps: ", train_fps)
 
   batch_steps = args.batch_size * args.batch_length
   should_train = elements.when.Ratio(args.train_ratio / batch_steps)
@@ -54,7 +64,9 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
         result['reward_rate'] = (np.abs(rew[1:] - rew[:-1]) >= 0.01).mean()
       epstats.add(result)
 
+  print("AE: args: ", args)
   fns = [bind(make_env, i) for i in range(args.envs)]
+  print("AE: len(fns): ", len(fns))
   driver = embodied.Driver(fns, parallel=not args.debug)
   driver.on_step(lambda tran, _: step.increment())
   driver.on_step(lambda tran, _: policy_fps.step())

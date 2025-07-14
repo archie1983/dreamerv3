@@ -53,7 +53,6 @@ class Optimizer(nj.Module):
       print(self._summarize_params(counts, self.summary_depth))
 
     #traceback.print_stack()
-    exit(0)
 
     axes = internal.get_data_axes()
     if axes:

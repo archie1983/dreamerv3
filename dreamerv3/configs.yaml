@@ -35,6 +35,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
+    ai2thorae: {size: [64, 64], repeat: 1, episodic: True, use_seed: True}
 
   replay:
     size: 5e6
@@ -194,6 +195,10 @@ loconav:
   task: loconav_ant_maze_m
   env.loconav.repeat: 1
   run.train_ratio: 256
+
+ai2thorae:
+  task: ai2thorae_10
+  run: {steps: 2.6e7, train_ratio: 32}
 
 multicpu:
   batch_size: 12
