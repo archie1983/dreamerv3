@@ -5,11 +5,11 @@ import functools
 import re
 import zlib
 
-import deepmind_lab
+#import deepmind_lab
 import elements
 import numpy as np
 
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 ## AE: From my AI2-Thor simulation packages and for their purposes
 from ai2_thor_model_training.training_data_extraction import (RobotNavigationControl, action_mapping,
