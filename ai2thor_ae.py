@@ -108,9 +108,6 @@ class AI2ThorEnv():
             'reset': elements.Space(bool),
         }
 
-
-
-
     def process_required_habitats(self):
         self.process_habitat(10)
         self.controller.stop()
@@ -210,23 +207,30 @@ class AI2ThorEnv():
             room_centre = room_of_placement[2]
 
             # Now plan path to the centre of the room
+#            try:
+#                path_and_plan = self.get_path_to_target_point(room_centre)
+#            except ValueError as e:
+#                # If the path could not be planned, then drop it and carry on with the next one
+#                print(f"ERROR: {e}")
+#                continue
+
+            self.current_target_point = room_centre
             try:
-                path_and_plan = self.get_path_to_target_point(room_centre)
+                self.initial_path_length = self.get_path_cost_to_target_point(self.current_target_point)
             except ValueError as e:
-                # If the path could not be planned, then drop it and carry on with the next one
+            # If the path could not be planned, then drop it and carry on with the next one
                 print(f"ERROR: {e}")
                 continue
 
-            self.current_target_point = room_centre
             # print("PATH & PLAN: ", path_and_plan)
-            path = path_and_plan[0]
-            plan = path_and_plan[1]
+#            path = path_and_plan[0]
+#            plan = path_and_plan[1]
             #self.prev_pose = thor_agent_pose(self.controller)  # This is where we are before the plan started
             # place_with_rtn
             # thor_pose_as_tuple(self.prev_pose)
             print("AE poses: place_with_rtn: ", place_with_rtn, " p: ", p, " self.rnc.get_agent_pos_and_rotation(): ", self.rnc.get_agent_pos_and_rotation())
-            cur_pos = self.rnc.get_agent_pos_and_rotation()
-            self.initial_path_length = get_path_length(path, cur_pos)
+#            cur_pos = self.rnc.get_agent_pos_and_rotation()
+#            self.initial_path_length = get_path_length(path, cur_pos)
 
             # at this point current path length is the initial path length. We will re-calculate current path length
             # many times and reward will be calculated using it.
@@ -239,7 +243,7 @@ class AI2ThorEnv():
         reachable_positions = [
             tuple(map(lambda x: roundany(x, self.grid_size), pos))
             for pos in thor_reachable_positions(self.controller)]
-        print(reachable_positions, self.grid_size)
+        #print(reachable_positions, self.grid_size)
         return reachable_positions
 
     class AStarNode:
@@ -356,7 +360,7 @@ class AI2ThorEnv():
         return ((round_to_step(location[0]), round_to_step(location[1]), round_to_step(location[2])),
                 (0.0, normalize_yaw(rotation[1]), 0.0))
 
-    def get_path_cost_to_target_point2(self, target_point):
+    def get_path_cost_to_target_point(self, target_point):
         # where we start
         start_point = self.rnc.get_agent_pos_and_rotation() # (start_position, start_rotation)
         # where we want to get to
@@ -428,167 +432,23 @@ class AI2ThorEnv():
 
         # AE: If we're here, then that means, we could not find a path.
         # AE: print warning and return something.
-        print("AE2: PATH NOT FOUND")
-        return float("inf")
-
-    def get_path_cost_to_target_point(self, target_point):
-        #print("AE: get_navigation_actions: ", get_navigation_actions(MOVEMENT_PARAMS), " :: ", MOVEMENT_PARAMS)
-        #print(self.reachable_positions)
-        # starting place
-        (start_position, start_rotation) = self.rnc.get_agent_pos_and_rotation()
-
-        target_position_dict = {'x': target_point.x, 'y': 0.9009993672370911, 'z': target_point.y}
-        target_position_tuple = (target_position_dict['x'], target_position_dict['y'], target_position_dict['z'])
-
-        # where we start
-        start_point = (start_position, start_rotation)
-        # where we want to get to
-        destination = (target_position_tuple, start_rotation)
-        # actions that we can take
-        navigation_actions = get_navigation_actions(MOVEMENT_PARAMS)
-
-        # positions that we can reach
-        reachable_positions = set(self.reachable_positions)
-        # Map angles in start and goal to be within 0 to 360 (see top comments)
-        start = (start_point[0], normalize_angles(start_point[1]))
-        goal = (destination[0], normalize_angles(destination[1]))
-
-        start = _round_pose(start)
-        goal = _round_pose(goal)
-
-        # The priority queue. We will keep poses in it with the estimates of their distances to the goal stored as priorities.
-        worklist = PriorityQueue()
-        # First pose will be the start and the estimate to the goal is its priority.
-        # Make sure that all poses in the worklist and elsewhere are rounded though,
-        # else they may not match later when we look them up and lead to no path found.
-        worklist.push(start, euclidean_dist(start[0], goal[0]))
-
-        # cost[n] is the cost of the cheapest path from start to n currently known, where n is the pose
-        cost = {}
-        # Obviously from start to start the cost is 0
-        cost[start] = 0
-        # comefrom[n] is the node immediately preceding node n on the cheapeast path
-        # This is what will keep track of the whole path should we want it
-        comefrom = {}
-        # keep track of visited poses
-        visited = set()
-
-        # AE: Start the A* exploration. Obviously at first we will have the start node there with the estimate to the goal.
-        while not worklist.isEmpty():
-            current_pose = worklist.pop()
-            #print("AE: current_pose: ", current_pose)
-            # If we've already visited this pose, then we can skip it and look at the next one
-            if current_pose in visited:
-                continue
-            # AE: If we're close enough to the end, then stop exploration and work backwards to reconstruct plan or
-            # estimate path cost.
-            if _same_pose(current_pose, goal,
-                          tolerance=1.0, # choose appropriate tolerances for both the distance and angle.
-                          angle_tolerance=5):
-                return cost[current_pose]
-
-            # AE: Look at all defined actions and try each of them from the current pose and see what happens
-            for action in navigation_actions:
-                #AE: See where we get if we try one of these actions
-                # They call it transform_pose, but it really attempts to move in the grid and get the new pose
-                next_pose = transform_pose(current_pose, action,
-                                           grid_size=self.grid_size,
-                                           diagonal_ok=True)
-                next_pose = _round_pose(next_pose) # Make sure each pose is rounded so that we can match them later when looking up.
-                # AE: Here we need to check not only that the next_pose is within reachable
-                # AE: positions, but also that we are facing in the direction that we moved to.
-                # AE: E.g., if we moved ahead then we must move in the direction that we are facing.
-                # AE: This can be achieved either by restricting the angles to (0, 90, 180, 270) if
-                # AE: we are moving in right angles. Or we could allow moving diagonally by setting
-                # AE: diagonal_ok = True. Since we set diagonal_ok to True earlier, we don't need to
-                # AE: worry about these extra checks for now, but I will leave this comment here for
-                # AE: future.
-                #
-                # AE: Now that we see where we got with this action, check if that's a valid place to be. If not, then
-                # try the next action.
-                if not _valid_pose(next_pose, reachable_positions): # TODO: Understand this _valid_pose function
-                    continue
-
-                # AE: Estimate the total cost to get to this new pose after making the action from the previous pose.
-                # we already know cost[current_pose], we can estimate cost of last action by how much we had to move and
-                # add that on top. Currently _cost function just treats each movement (forward, left or right) as 1 and if
-                # there is a combination of two (e.g. left and forward, a.k.a., moving diagonally), then the cost is 2. We may
-                # want to change that at some point to prioritize straight movements for example.
-                new_cost = cost[current_pose] + _cost(action)
-                # AE: Now we check if this pose, that we get with the chosen action, already exists in the cost set.
-                # If it does, then we'll get some number from cost.get(next_pose, float("inf"), otherwise we'll get
-                # infinity. If we got some number, but our new calculation is better than the old one, then we update
-                # the cost set with the new cost for the given pose.
-                if new_cost < cost.get(next_pose, float("inf")):
-                    # AE: update the cost for this pose that we achieve from old pose with the selected action
-                    cost[next_pose] = new_cost
-                    #print("AE: ", "cost[", next_pose, "] = ", new_cost)
-                    #AE: push the newly discovered pose to our priority queue, giving the priority of its cost + euclidean
-                    # distance from it to the goal (underestimate of the cost of the rest of the path).
-                    worklist.push(next_pose, cost[next_pose] + euclidean_dist(next_pose[0], goal[0]))
-                    # AE: Keep track of where we came from so that we can reconstruct plan
-                    comefrom[next_pose] = (current_pose, action)
-
-            visited.add(current_pose)
-
-        # AE: If we're here, then that means, we could not find a path.
-        # AE: print warning and return something.
-        print("AE: PATH NOT FOUND")
-        return float("inf")
-
-    ##
-    # Get path to an arbitrary point on the floor (e.g. center of the room)
-    ##
-    def get_path_to_target_point(self, target_point):
-
-        npc = time.time()
-        print(self.get_path_cost_to_target_point(target_point))
-        print("AE: New Path cost time: ", (time.time() - npc))
-
-        npc = time.time()
-        print(self.get_path_cost_to_target_point2(target_point))
-        print("AE2: New Path cost time2: ", (time.time() - npc))
-
-        (start_position, start_rotation) = self.rnc.get_agent_pos_and_rotation()
-
-        event = _resolve(self.controller)
-        #self.last_start_position, _ = thor_agent_pose(event)
-
-        target_position_dict = {'x': target_point.x, 'y': 0.9009993672370911, 'z': target_point.y}
-        target_position_tuple = (target_position_dict['x'], target_position_dict['y'], target_position_dict['z'])
-        #print("# AE: target_position: ", target_position)
-        #print("# AE: start_pose: ", (start_position, start_rotation))
-
-        #print("AE: v_angles: " + str(v_angles) + " # h_angles: " + str(h_angles)
-        #        + " # movement_params: " + str(movement_params) + " # goal_distance: " + str(goal_distance)
-        #        + " # diagonal_ok: " + str(diagonal_ok) + " # positions_only: " + str(positions_only)
-        #        + " # return_plan: " + str(return_plan) + " # as_tuples: " + str(as_tuples))
-
-        #keywords = {'v_angles': [30], 'return_plan': True}
-        keywords = {'v_angles': [0], 'return_plan': True, 'diagonal_ok': True}
-        return get_shortest_path_to_object(self.controller, "TargetPoint", start_position, start_rotation, target_position=target_position_tuple, **keywords)
+        raise ValueError("Plan not found from {} to {}".format(start_point, destination))
+        #return float("inf")
 
     # This function will calculate path length to the desired point from the current position.
     def get_current_path_length(self):
-        #cur_pose = thor_agent_pose(self.controller)
-        cur_pose = self.rnc.get_agent_pos_and_rotation()
-
         try:
-            ppts = time.time()
-            [cur_path, _] = self.get_path_to_target_point(self.current_target_point)
-            print("AE: Path Plan time: ", (time.time() - ppts))
-            plts = time.time()
-            self.current_path_length = get_path_length(cur_path, cur_pose)
-            #print("AE: Path Measure time: ", (time.time() - plts))
+            self.current_path_length = self.get_path_cost_to_target_point(self.current_target_point)
         except ValueError as e:
-            print("Path planning failed from ", cur_pose, " to: ", self.current_target_point, " Using previous current_path_length: ", self.current_path_length)
+            print(f"ERROR: {e}")
+            print("Using previous current_path_length: ", self.current_path_length)
 
         return self.current_path_length
 
     # Calculates the reward for the current position of the agent. It is based on the length of the initial
     # path and the current path to the target.
     def current_reward(self):
-        return self.initial_path_length - self.get_current_path_length()
+        return (self.initial_path_length - self.get_current_path_length()) / self.initial_path_length
 
     # Compares the current reward with the maximum reward. If they're the same, then we have arrived.
     def have_we_arrived(self):
@@ -611,7 +471,7 @@ class AI2ThorEnv():
         #print("AE: Execute Action time: ", (time.time() - ets))
         rts = time.time()
         reward = self.current_reward()
-        #print("AE: Reward time: ", (time.time() - rts))
+        print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
         self._done = self.have_we_arrived()
         return self._obs(reward, is_last=self._done)
 
