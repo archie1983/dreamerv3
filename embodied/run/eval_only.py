@@ -55,8 +55,9 @@ def eval_only(make_agent, make_env, make_logger, args):
   driver.on_step(lambda tran, _: step.increment())
   driver.on_step(lambda tran, _: policy_fps.step())
   driver.on_step(logfn)
-
+  print("AE: args.from_checkpoint: ", args.from_checkpoint)
   cp = elements.Checkpoint()
+  print("AE: agent: ", agent)
   cp.agent = agent
   cp.load(args.from_checkpoint, keys=['agent'])
 
