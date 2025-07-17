@@ -4,7 +4,7 @@ import zlib
 
 import deepmind_lab
 import elements
-import embodied
+import embodied, time
 import numpy as np
 
 
@@ -15,6 +15,8 @@ class DMLab(embodied.Env):
   def __init__(
       self, level, repeat=4, size=(64, 64), mode='train',
       actions='popart', episodic=True, text=None, seed=None):
+
+    self.step_time = 0.0
     if level == 'goals':  # Shortcut for convenience
       level = 'dmlab_explore_goal_locations_small'
     self._size = size
@@ -73,6 +75,8 @@ class DMLab(embodied.Env):
     }
 
   def step(self, action):
+    #print("STEP T diff: ", (time.time() - self.step_time))
+    #self.step_time = time.time()
     if action['reset'] or self._done:
       self._env.reset(seed=self._random.randint(0, 2 ** 31 - 1))
       self._done = False

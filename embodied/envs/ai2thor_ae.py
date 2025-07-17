@@ -49,6 +49,10 @@ class AI2ThorEnv(embodied.Env):
         self.current_path_length = 1000
         self.reachable_positions = None
         self.grid_size = 0.0
+        self.step_time = 0.0
+        # If we get into a bad spot from which for whatever reason we can't plan a path out, then we'll set this to
+        # True and based on it will teleport to a new place when we see this set.
+        self._bad_spot = False
 
         # when we select a random position and plan path to the room centre, we will assign a value to this parameter
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
@@ -121,7 +125,7 @@ class AI2ThorEnv(embodied.Env):
     ##
     def load_habitat(self, habitat_id):
         # load required habitat
-        print("AE: haba: ", habitat_id)
+        #print("AE: haba: ", habitat_id)
         habitat = self.atu.load_proctor_habitat(int(habitat_id))
 
         # Launch a controller for the loaded habitat. If we already have a controller,
@@ -201,7 +205,7 @@ class AI2ThorEnv(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            print("Placement: ", place_with_rtn)
+            #print("Placement: ", place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
 
@@ -233,8 +237,8 @@ class AI2ThorEnv(embodied.Env):
             # self.prev_pose = thor_agent_pose(self.controller)  # This is where we are before the plan started
             # place_with_rtn
             # thor_pose_as_tuple(self.prev_pose)
-            print("AE poses: place_with_rtn: ", place_with_rtn, " p: ", p, " self.rnc.get_agent_pos_and_rotation(): ",
-                  self.rnc.get_agent_pos_and_rotation())
+            #print("AE poses: place_with_rtn: ", place_with_rtn, " p: ", p, " self.rnc.get_agent_pos_and_rotation(): ",
+            #      self.rnc.get_agent_pos_and_rotation())
             #            cur_pos = self.rnc.get_agent_pos_and_rotation()
             #            self.initial_path_length = get_path_length(path, cur_pos)
 
@@ -450,6 +454,7 @@ class AI2ThorEnv(embodied.Env):
         except ValueError as e:
             print(f"ERROR: {e}")
             print("Using previous current_path_length: ", self.current_path_length)
+            self._bad_spot = True
 
         return self.current_path_length
 
@@ -459,32 +464,39 @@ class AI2ThorEnv(embodied.Env):
         return (self.initial_path_length - self.get_current_path_length()) / self.initial_path_length
 
     # Compares the current reward with the maximum reward. If they're the same, then we have arrived.
-    def have_we_arrived(self):
-        return (self.current_path_length == 0)
+    def have_we_arrived(self, epsilon = 0.0):
+        return (self.current_path_length <= epsilon)
 
     # Advances the simulation using the selected action
     def step(self, action):
+        #print("STEP T diff: ", (time.time() - self.step_time))
+        #self.step_time = time.time()
         # AE: If this is a terminal state or we need to end, then reset environment
         if action['reset'] or self._done:
             # self._env.reset(seed=self._random.randint(0, 2 ** 31 - 1))
             self.load_habitat(self.habitat_id)
             self._done = False
+            self._bad_spot = False
             return self._obs(0.0, is_first=True)
+        elif self._bad_spot:
+            self.choose_random_placement_in_habitat()
+            self._bad_spot = False
         # raw_action = np.array(self._actions[action['action']], np.intc)
         raw_action = index_to_action(int(action['action']))
         # print(raw_action)
         # reward = self._env.step(raw_action, num_steps=self._repeat)
-        ets = time.time()
+        #ets = time.time()
         self.rnc.execute_action(raw_action)
-        # print("AE: Execute Action time: ", (time.time() - ets))
-        rts = time.time()
+        #print("AE: Execute Action time: ", (time.time() - ets))
+        #rts = time.time()
         reward = self.current_reward()
-        print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
-        self._done = self.have_we_arrived()
+        #print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
+        self._done = self.have_we_arrived(0.25)
         return self._obs(reward, is_last=self._done)
 
     # Returns the observations from the last performed step
     def _obs(self, reward, is_first=False, is_last=False):
+        #rts = time.time()
         if not self._done:
             # self._current_image = self._env.observations()['RGB_INTERLEAVED']
 
@@ -510,7 +522,8 @@ class AI2ThorEnv(embodied.Env):
             is_last=is_last,
             is_terminal=is_last if self._episodic else False,
         )
-        print(reward)
+        #print(reward)
+        #print("AE: OBS time: ", (time.time() - rts), " reward: ", reward)
         return obs
 
     def _embed(self, text):
