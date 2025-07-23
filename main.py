@@ -20,7 +20,7 @@ def main(argv=None):
   from .agent import Agent
   [elements.print(line) for line in Agent.banner]
 
-  configs = elements.Path(folder / 'dreamerv3/configs.yaml').read()
+  configs = elements.Path(folder / 'configs.yaml').read()
   configs = yaml.YAML(typ='safe').load(configs)
   parsed, other = elements.Flags(configs=['defaults']).parse_known(argv)
   #print("AE parsed, other, argv: ", parsed, other, argv)
@@ -32,7 +32,27 @@ def main(argv=None):
   config = config.update(logdir=(
       config.logdir.format(timestamp=elements.timestamp())))
   print("AE conf: ", config)
+  if 'JOB_COMPLETION_INDEX' in os.environ:
+    config = config.update(replica=int(os.environ['JOB_COMPLETION_INDEX']))
+  print('Replica:', config.replica, '/', config.replicas)
+
+  logdir = elements.Path(config.logdir)
+  print('Logdir:', logdir)
   print('Run script:', config.script)
+  if not config.script.endswith(('_env', '_replay')):
+    logdir.mkdir()
+    config.save(logdir / 'config.yaml')
+
+  def init():
+    elements.timer.global_timer.enabled = config.logger.timer
+
+  portal.setup(
+      errfile=config.errfile and logdir / 'error',
+      clientkw=dict(logging_color='cyan'),
+      serverkw=dict(logging_color='cyan'),
+      initfns=[init],
+      ipv6=config.ipv6,
+  )
 
   args = elements.Config(
       **config.run,
