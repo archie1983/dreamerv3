@@ -115,9 +115,14 @@ class Agent(embodied.jax.Agent):
     return spaces
 
   def init_policy(self, batch_size):
+    # AE: A function that creates a zero-initialized tensor according to the shape of the passed x argument (and type of course)
     zeros = lambda x: jnp.zeros((batch_size, *x.shape), x.dtype)
+    # AE: jax.tree.map(zeros, self.act_space) here does the following: It takes the self.act_space structure and treats it
+    # as a pytree and on each leave of this pytree it puts the zero-initialized tensor created by the lambda function above
+    # with the parameter being the existing leaf. So in case of ours AI2-Thor action space, this creates a pytree with
+    # zero-initialized tensor structure of 1 element, because our actions are just one value instead of a list of some values.
     return (
-        self.enc.initial(batch_size),
+        self.enc.initial(batch_size), # AE: The encoder CNN transforming our image to latent space
         self.dyn.initial(batch_size),
         self.dec.initial(batch_size),
         jax.tree.map(zeros, self.act_space))
@@ -132,14 +137,23 @@ class Agent(embodied.jax.Agent):
     (enc_carry, dyn_carry, dec_carry, prevact) = carry
     kw = dict(training=False, single=True)
     reset = obs['is_first']
+    # AE: This is probably where we encode current observation and get tokens
     enc_carry, enc_entry, tokens = self.enc(enc_carry, obs, reset, **kw)
+    print("AE: tokens: ", tokens)
+    # AE: I believe this is where we put in previous action into the environment
+    # along with tokens from the encoder and we get out the current latent features.
     dyn_carry, dyn_entry, feat = self.dyn.observe(
         dyn_carry, tokens, prevact, reset, **kw)
+    print("AE: feat: ", feat)
     dec_entry = {}
     if dec_carry:
       dec_carry, dec_entry, recons = self.dec(dec_carry, feat, reset, **kw)
+    # AE: And this is where I believe we pass the features to the actor (which we call pol here) and get out
+    # the action (or a set of actions perhaps, which we call a policy).
     policy = self.pol(self.feat2tensor(feat), bdims=1)
+    print("AE: policy: ", policy['action'].logits)
     act = sample(policy)
+    print("AE: act: ", act)
     out = {}
     out['finite'] = elements.tree.flatdict(jax.tree.map(
         lambda x: jnp.isfinite(x).all(range(1, x.ndim)),

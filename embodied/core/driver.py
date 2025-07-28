@@ -37,7 +37,15 @@ class Driver:
         k: np.zeros((self.length,) + v.shape, v.dtype)
         for k, v in self.act_space.items()}
     self.acts['reset'] = np.ones(self.length, bool)
+
+    # AE: Debug
+    print("AE: ACTS after reset: ", self.acts)
+    for key, value in self.acts.items():
+      print("AE: ACTS after reset: key: ", key, " val: ", value)
+
+    # AE: init_policy is a function that lives inside Agent class. Why are we assigning here the function and the boolean AND-ing of its results?
     self.carry = init_policy and init_policy(self.length)
+    #print("AE, driver.py: self.carry: ", self.carry)
 
   def close(self):
     if self.parallel:
@@ -54,26 +62,47 @@ class Driver:
       step, episode = self._step(policy, step, episode)
 
   def _step(self, policy, step, episode):
+    # AE: Here we have a collection of actions in something like this: {'action': array([0, 2], dtype=int32), 'reset': array([False, False])}
+    # The size of the action array in the dictionary is 2 here because in this case we had 2 AI2-Thor environments
+    # running- each providing an observation which lead to an action. This collection of actions was acquired in this
+    # same step function- just in the previous iteration.
     acts = self.acts
+    print("AE, driver.py: acts: ", acts)
+    print("AE, driver.py: acts['action']: ", acts['action'])
+    # AE: Here we assert that the number of actions in the action list matches the environment count. Same for the reset flags.
     assert all(len(x) == self.length for x in acts.values())
+    # AE: And that all of them are lists (even if there's only 1 environment)
     assert all(isinstance(v, np.ndarray) for v in acts.values())
+    # AE: Here we now start separating actions and reset states in sets meant for each environment. So the above example
+    # will turn into: [{'action': np.int32(0), 'reset': np.False_}, {'action': np.int32(2), 'reset': np.False_}]
     acts = [{k: v[i] for k, v in acts.items()} for i in range(self.length)]
+    print("AE, driver.py: acts2: ", acts)
+    print("AE, driver.py: acts2[0]: ", acts[0])
+    print("AE, driver.py: acts2[0]['action']: ", acts[0]['action'])
+    # AE: Now we pass each action to the environment that it is meant to go to. The enviornment will process it and
+    # proveide an observation as a feedback.
     if self.parallel:
       [pipe.send(('step', act)) for pipe, act in zip(self.pipes, acts)]
       obs = [self._receive(pipe) for pipe in self.pipes]
     else:
       obs = [env.step(act) for env, act in zip(self.envs, acts)]
+    print("AE, driver.py: obs[0].keys(): ", obs[0].keys())
+    # AE: As a reminder, the keys of observation for our case are: ['image', 'reward', 'is_first', 'is_last', 'is_terminal']
+    # Now we
     obs = {k: np.stack([x[k] for x in obs]) for k in obs[0].keys()}
     logs = {k: v for k, v in obs.items() if k.startswith('log/')}
     obs = {k: v for k, v in obs.items() if not k.startswith('log/')}
     assert all(len(x) == self.length for x in obs.values()), obs
+    #print("AE, driver.py: self.carry: ", self.carry) # jaxlib._jax.XlaRuntimeError: INVALID_ARGUMENT: Disallowed device-to-host transfer: shape=(8192), dtype=BF16, device=cuda:0
     self.carry, acts, outs = policy(self.carry, obs, **self.kwargs)
+    print("AE, driver.py: acts3: ", acts)
     assert all(k not in acts for k in outs), (
         list(outs.keys()), list(acts.keys()))
     if obs['is_last'].any():
       mask = ~obs['is_last']
       acts = {k: self._mask(v, mask) for k, v in acts.items()}
     self.acts = {**acts, 'reset': obs['is_last'].copy()}
+    print("AE, driver.py: self.acts4: ", self.acts)
     trans = {**obs, **acts, **outs, **logs}
     for i in range(self.length):
       trn = elements.tree.map(lambda x: x[i], trans)

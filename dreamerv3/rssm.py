@@ -229,6 +229,7 @@ class Encoder(nj.Module):
       x = nn.DictConcat(vspace, 1, squish=squish)(vecs)
       x = x.reshape((-1, *x.shape[bdims:]))
       for i in range(self.layers):
+        print("AE: rssm.py constructing vec space MLP: ", i, self.units, self.kw)
         x = self.sub(f'mlp{i}', nn.Linear, self.units, **self.kw)(x)
         x = nn.act(self.act)(self.sub(f'mlp{i}norm', nn.Norm, self.norm)(x))
       outs.append(x)
@@ -240,7 +241,7 @@ class Encoder(nj.Module):
       x = nn.cast(jnp.concatenate(imgs, -1), force=True) / 255 - 0.5
       x = x.reshape((-1, *x.shape[bdims:]))
       for i, depth in enumerate(self.depths):
-        print("AE: constructing CNN: ", i, depth, K, self.kw)
+        print("AE: rssm.py constructing CNN: ", i, depth, K, self.kw)
         if self.outer and i == 0:
           x = self.sub(f'cnn{i}', nn.Conv2D, depth, K, **self.kw)(x)
         elif self.strided:
@@ -305,6 +306,7 @@ class Decoder(nj.Module):
     inp = [x.reshape((math.prod(bshape), -1)) for x in inp]
     inp = jnp.concatenate(inp, -1)
 
+    # AE: If our observation will be vectors, then construct an MLP
     if self.veckeys:
       spaces = {k: self.obs_space[k] for k in self.veckeys}
       o1, o2 = 'categorical', ('symlog_mse' if self.symlog else 'mse')
@@ -316,6 +318,7 @@ class Decoder(nj.Module):
       outs = self.sub('vec', embodied.jax.DictHead, spaces, outputs, **kw)(x)
       recons.update(outs)
 
+    # AE: If our observations will be images, then create CNN
     if self.imgkeys:
       factor = 2 ** (len(self.depths) - int(bool(self.outer)))
       minres = [int(x // factor) for x in self.imgres]

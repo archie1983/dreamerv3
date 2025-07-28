@@ -9,6 +9,8 @@ import numpy as np
 def eval_only(make_agent, make_env, make_logger, args):
   assert args.from_checkpoint
 
+  # AE: This make_agent function is defined in main.py and it basically constructs an Agent defined in jax/agent.py
+  # Once we have it, we can then load stored weights from a checkpoint. That happens towards the end of this function.
   agent = make_agent()
   logger = make_logger()
 
@@ -58,10 +60,23 @@ def eval_only(make_agent, make_env, make_logger, args):
   print("AE: args.from_checkpoint: ", args.from_checkpoint)
   cp = elements.Checkpoint()
   print("AE: agent: ", agent)
+
+  # AE: elements.Checkpoint object has a __setattr__(self, name, value) function which allows to set
+  # arbitrary attributes with arbitrary values. These values need to implement a load or save method.
+  # If, e.g., the value is an object that implements load method, then we can later call cp.load and get
+  # the passed object loaded up with the checkpoint weights.
   cp.agent = agent
+  # AE: In this case, what we're loading is an Agent object defined in jax/agent.py which is a superclass to
+  # dreamerv3/agent.py. And this agent here is actually constructed using mage_agent function which is passed
+  # from main.py and therefore this agent is the one from dreamerv3/agent.py. Ultimately we construct it by passing
+  # observation space, action space and configuration.
   cp.load(args.from_checkpoint, keys=['agent'])
 
   print('Start evaluation')
+  # AE: Are we here passing args one by one to agent's policy net and collecting results into policy variable?
+  # AE: Here we simply define a function (using lambda) that will take in *args and return agent.policy called
+  # on those args. We only want to create this function, not call it yet. This function will be passed to driver
+  # function as a function pointer and will be called from there.
   policy = lambda *args: agent.policy(*args, mode='eval')
   driver.reset(agent.init_policy)
   while step < args.steps:

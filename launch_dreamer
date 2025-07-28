@@ -3,3 +3,5 @@ python dreamerv3/main.py --configs ai2thorae --batch_size 2 --run.envs 2
 python dreamerv3/main.py --configs ai2thorae --batch_size 2 --run.envs 2 --script eval_only --run.from_checkpoint "/home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824"
 
 python dreamerv3/main.py --configs ai2thorae --batch_size 2 --run.envs 2 --logdir "/home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824"
+
+python main.py --configs ai2thorae --batch_size 2 --run.envs 2 --script eval_only --run.from_checkpoint "/home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824"

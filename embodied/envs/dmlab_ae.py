@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 from ai2_thor_model_training.training_data_extraction import RobotNavigationControl
 
-class AEDMLab():
+class AEDMLab(embodied.Env):
 
   TOKENIZER = re.compile(r'([A-Za-z_]+|[^A-Za-z_ ]+)')
 

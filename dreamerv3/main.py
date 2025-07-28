@@ -141,10 +141,16 @@ def make_agent(config):
   obs_space = {k: v for k, v in env.obs_space.items() if notlog(k)}
   act_space = {k: v for k, v in env.act_space.items() if k != 'reset'}
   env.close()
+  print("AE: obs_space: ", obs_space)
+  print("AE: act_space: ", act_space)
   if config.random_agent:
     return embodied.RandomAgent(obs_space, act_space)
   cpdir = elements.Path(config.logdir)
   cpdir = cpdir.parent if config.replicas > 1 else cpdir
+  print("AE: cpdir: ", cpdir)
+  # AE: At this point we have action space, observation space and full configuration.
+  # We will not instantiate an Agent based on this information. This agent will later
+  # be used to load pretrained Agent's weight in run/eval_only.py
   return Agent(obs_space, act_space, elements.Config(
       **config.agent,
       logdir=config.logdir,

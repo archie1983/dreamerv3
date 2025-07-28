@@ -109,6 +109,7 @@ class Agent(embodied.Agent):
     self.partition_rules = getattr(
         self.model, 'partition_rules', ([('.*', P())], []))
     elements.print('Initializing parameters...', color='yellow')
+    # AE: This is where we reconstruct our models (CNNs, MLPs and RSSM) - Follow through to understand.
     with self.train_mesh:
       self.params, self.train_params_sharding = self._init_params()
     elements.print('Done initializing!', color='yellow')

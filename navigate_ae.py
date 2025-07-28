@@ -1,5 +1,5 @@
 import importlib
-import os
+import os, time
 import pathlib
 import sys
 from functools import partial as bind
@@ -15,7 +15,83 @@ import numpy as np
 import portal
 import ruamel.yaml as yaml
 
+class Navigator():
+    def __init__(self, agent, env, config):
+        self.agent = agent
+        self.env = env
+        self.config = config
 
+    ##
+    # Here we will look at the action space and create a vector for all actions for each entry in a batch.
+    # Since we are trying to navigate, then batch length = 1 and our actions are of course just simple
+    # numbers themselves rather than vectors, so it will all be a simple collection of likeness to:
+    # [[0, 1, 2, 3]]
+    # Reset flag is just a boolen (set to 1 at first)
+    # And importantly we will get another tensor which we call self.carry. It will contain initial states
+    # for Encoder, Decoder and our RSSM latent space model. Encoder and Decoder intial states are just empty
+    # sets, but RSSM (which we call dyn here) has tensors representing stochastic and deterministic state (initialized to
+    # something of course, because we haven't yet started representing the world with them.
+    ##
+    def reset(self):
+        length = 1 # Change this to some other number if you want batches of other sizes for some reason
+        self.acts = {
+            k: np.zeros((length,) + v.shape, v.dtype)
+            for k, v in self.env.act_space.items()}
+        self.acts['reset'] = np.ones(length, bool)
+        # AE: init_policy is a function that lives inside Agent class. Why are we assigning here the function and the boolean AND-ing of its results?
+        self.carry = self.agent.init_policy(length)
+
+        # AE: Debug
+        print("AE: ENV ACTS: ", self.env.act_space)
+        print("AE: ACTS: ", self.acts)
+
+        for key, value in self.acts.items():
+            print("AE: ACTS: key: ", key, " val: ", value)
+
+        acts = [{k: v[i] for k, v in self.acts.items()} for i in range(1)]
+
+        # AE: Debug
+        print("AE: ENV ACTS2: ", self.env.act_space)
+        print("AE: ACTS2: ", acts)
+
+        for key, value in acts[0].items():
+            print("AE: ACTS2[0]: key: ", key, " val: ", value)
+
+        # AE: Do the intitial step with the action['reset'] == True to get the first observation
+        print("AE: reset::acts[0] : ", acts[0])
+        self.obs = self.env.step(acts[0])
+        #print("AE, driver.py: self.carry: ", self.carry)
+        # Now that we have self.carry, we can start inferencing from our world model - feed it observations and get navigation decisions.
+
+    ##
+    # Look at current observation and RSSM state and infer the next best action
+    ##
+    def navigation_step(self):
+        #obs = {k: np.stack([x[k] for x in self.obs]) for k in self.obs[0].keys()}
+        #print("AE: self.obs: ", self.obs)
+        obs = {k: np.stack([self.obs[k]]) for k in self.obs.keys()}
+        obs = {k: v for k, v in obs.items() if not k.startswith('log/')}
+        # print("AE, driver.py: self.carry: ", self.carry) # jaxlib._jax.XlaRuntimeError: INVALID_ARGUMENT: Disallowed device-to-host transfer: shape=(8192), dtype=BF16, device=cuda:0
+        #self.carry, acts, outs = self.agent.policy(self.carry, obs, **self.config)
+        self.carry, acts, outs = self.agent.policy(self.carry, obs, mode="eval_only")
+        print("AE, driver.py: acts3: ", acts)
+        assert all(k not in acts for k in outs), (
+            list(outs.keys()), list(acts.keys()))
+        if obs['is_last'].any():
+            mask = ~obs['is_last']
+            acts = {k: self._mask(v, mask) for k, v in acts.items()}
+        self.acts = {**acts, 'reset': obs['is_last'].copy()}
+        print("AE, driver.py: self.acts4: ", self.acts)
+        trans = {**obs, **acts, **outs}
+
+        # Now that we have the best action according to Actor, we can execute that action in the environment
+        print("AE: navigation_step::self.acts ", self.acts)
+        #self.acts = {k: self.acts[k].item() for k in self.acts}
+        acts = [{k: v[i] for k, v in self.acts.items()} for i in range(1)]
+        print("AE: navigation_step::self.acts2 ", acts)
+        self.obs = self.env.step(acts[0])
+
+DEBUG = False
 def main(argv=None):
     from .agent import Agent
     [elements.print(line) for line in Agent.banner]
@@ -49,10 +125,27 @@ def main(argv=None):
 
     print("AE: config.script: ", config.script)
 
-    embodied.run.navigate_AI2_thor(
-        bind(make_agent, config),
-        bind(make_env, config),
-        args)
+    if DEBUG:
+        embodied.run.navigate_AI2_thor(
+            bind(make_agent, config),
+            bind(make_env, config),
+            args)
+    else:
+        agent = make_agent(config)
+        cp = elements.Checkpoint()
+        cp.agent = agent
+        # We can also load checkpoints or parts of a checkpoint from a different directory.
+        cp.load("/home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824", keys=['agent'])
+        #print(cp.agent)
+
+        # Now make environment. TODO: We really should re-use the environment that was created inside make_agent.
+        env = make_env(config, 0)
+        # Now we have an agent and the environment. Let's load the Navigator so that it starts its job
+        navig = Navigator(cp.agent, env, config)
+        navig.reset()
+        for i in range(100):
+            navig.navigation_step()
+            time.sleep(0.1)
 
 ##
 # Crucially, make_agent calls make_env and invokes the environment.
