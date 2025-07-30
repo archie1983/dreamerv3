@@ -5,3 +5,18 @@ python dreamerv3/main.py --configs ai2thorae --batch_size 2 --run.envs 2 --scrip
 python dreamerv3/main.py --configs ai2thorae --batch_size 2 --run.envs 2 --logdir "/home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824"
 
 python main.py --configs ai2thorae --batch_size 2 --run.envs 2 --script eval_only --run.from_checkpoint "/home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824"
+
+
+/home/elksnis/logdir/20250729T210623/ckpt/20250730T092344F569475
+
+
+python main.py --configs ai2thorae --batch_size 2 --run.envs 2 --script eval_only --run.from_checkpoint "/home/elksnis/logdir/20250716T225615/ckpt/20250730T092344F569475"
+
+
+python navigate_ae.py --configs ai2thorae --batch_size 2 --run.envs 2 --script eval_only --run.from_checkpoint "/home/elksnis/logdir/20250716T225615/ckpt/20250730T092344F569475"
+
+python navigate_ae.py --configs ai2thorae --batch_size 1 --run.envs 1 --script eval_only --run.from_checkpoint "/home/elksnis/logdir/20250716T225615/ckpt/20250730T092344F569475"
+
+
+1st training, gradient reward towards center without penalty : /home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824
+2nd training, sparse reward with 1000 for reaching goal and penalty of -1 for each step taken : /home/elksnis/logdir/20250729T210623/ckpt/20250730T092344F569475

@@ -281,6 +281,13 @@ class AI2ThorEnv(embodied.Env):
     def current_reward(self):
         return (self.initial_path_length - self.get_current_path_length()) / self.initial_path_length
 
+    ##
+    # AE: A sparse reward- giving reward only when we reach the target and only once. In all other cases give penalty of -1
+    ##
+    def sparse_reward(self):
+        self.get_current_path_length()
+        return 1000 if self.have_we_arrived(0.25) else -1
+
     # Compares the current reward with the maximum reward. If they're the same, then we have arrived.
     def have_we_arrived(self, epsilon = 0.0):
         return (self.current_path_length <= epsilon)
@@ -307,7 +314,9 @@ class AI2ThorEnv(embodied.Env):
         self.rnc.execute_action(raw_action)
         #print("AE: Execute Action time: ", (time.time() - ets))
         #rts = time.time()
-        reward = self.current_reward()
+        #reward = self.current_reward()
+        reward = self.sparse_reward()
+
         #print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
         self._done = self.have_we_arrived(0.25)
         return self._obs(reward, is_last=self._done)
