@@ -246,7 +246,8 @@ def generate_summary_table(df):
 def main():
     """Main function to load data and generate all plots"""
     # Load the data
-    file_path = "/home/elksnis/logdir/20250716T225615/metrics.jsonl"  # Change this to your file path
+    #file_path = "/home/elksnis/logdir/20250716T225615/metrics.jsonl"  # Change this to your file path
+    file_path = "/home/elksnis/logdir/20250804T110439/metrics.jsonl"
     
     try:
         df = load_metrics(file_path)

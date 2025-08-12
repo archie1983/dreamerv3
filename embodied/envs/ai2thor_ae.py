@@ -56,11 +56,15 @@ class AI2ThorEnv(embodied.Env):
         # If we get into a bad spot from which for whatever reason we can't plan a path out, then we'll set this to
         # True and based on it will teleport to a new place when we see this set.
         self._bad_spot = False
+        self._bad_spot_cnt = 0
 
         # when we select a random position and plan path to the room centre, we will assign a value to this parameter
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
         # further points.
         self.initial_path_length = 0
+
+        # If we use reward that tracks the best length of the path left, then we will need this variable
+        self.best_path_length = 0
 
         # We will need to keep track of the target point that we want to reach because we will be re-planning path to it
         # from all sorts of different points.
@@ -122,6 +126,20 @@ class AI2ThorEnv(embodied.Env):
     def process_required_habitats(self):
         self.process_habitat(10)
         self.controller.stop()
+
+    def load_random_habitat(self):
+        # choose a random habitat from a space of train_10 till train_200
+        loaded = False
+        while not loaded:
+            try:
+                sp = elements.Space(np.int32, (), 100, 400)
+                self.habitat_id = sp.sample()
+                self.load_habitat(self.habitat_id)
+                # enfore at least 2 rooms in a habitat
+                if len(self.rooms_in_habitat) >= 2:
+                    loaded = True
+            except ValueError as e:
+                continue
 
     ##
     # Load the given habitat- load it, and put agent in a random place
@@ -200,7 +218,9 @@ class AI2ThorEnv(embodied.Env):
         # Choose one placement in the set of placements and then plan path from that placement to
         # the middle of the room. If planning path is not possible, then choose another one.
         path_planned = False
+        placement_attempts = 0
         while not path_planned:
+            placement_attempts += 1
             els = elements.Space(np.int32, (), 0, len(placements))
             p = list(placements)[int(els.sample())]
             # p = placements.pop()
@@ -234,8 +254,14 @@ class AI2ThorEnv(embodied.Env):
                                                                                  self.reachable_positions)
             except ValueError as e:
                 # If the path could not be planned, then drop it and carry on with the next one
-                print(f"ERROR: {e}")
-                continue
+                #print(f"ERROR: {e}")
+                if placement_attempts <= 10:
+                    print(".", sep="", end="")
+                    continue
+                else:
+                    # If we have tried for 10 times already, then give up with this habitat
+                    print("next_hab", sep="", end="")
+                    raise e
 
             # print("PATH & PLAN: ", path_and_plan)
             #            path = path_and_plan[0]
@@ -251,6 +277,7 @@ class AI2ThorEnv(embodied.Env):
             # at this point current path length is the initial path length. We will re-calculate current path length
             # many times and reward will be calculated using it.
             self.current_path_length = self.initial_path_length
+            self.best_path_length = self.initial_path_length
 
             path_planned = True
 
@@ -270,9 +297,11 @@ class AI2ThorEnv(embodied.Env):
                                                                              self.current_target_point,
                                                                              self.reachable_positions)
         except ValueError as e:
-            print(f"ERROR: {e}")
-            print("Using previous current_path_length: ", self.current_path_length)
+            #print(f"ERROR: {e}")
+            #print("Using previous current_path_length: ", self.current_path_length)
+            print('!', end='', sep='')
             self._bad_spot = True
+            self._bad_spot_cnt += 1
 
         return self.current_path_length
 
@@ -286,7 +315,28 @@ class AI2ThorEnv(embodied.Env):
     ##
     def sparse_reward(self):
         self.get_current_path_length()
-        return 1000 if self.have_we_arrived(0.25) else -1
+        #return 1000 if self.have_we_arrived(0.25) else -1
+        return 20 if self.have_we_arrived(0.5) else -1
+
+    ##
+    # AE: A reward that penalises going back or staying in place and rewards progress.
+    ##
+    def path_progress_reward(self):
+        cur_path_length = self.get_current_path_length()
+
+        if self.have_we_arrived(0.5):
+            # If we're there, then give 20
+            return 20
+        elif self.best_path_length > cur_path_length:
+            # If we improved the path, then give 1
+            self.best_path_length = cur_path_length
+            return 1
+        elif self.best_path_length == cur_path_length:
+            # if we stayed in place, then small penalty
+            return -0.1
+        else:
+            # If we went backwards then penalise
+            return -0.3
 
     # Compares the current reward with the maximum reward. If they're the same, then we have arrived.
     def have_we_arrived(self, epsilon = 0.0):
@@ -299,11 +349,17 @@ class AI2ThorEnv(embodied.Env):
         # AE: If this is a terminal state or we need to end, then reset environment
         if action['reset'] or self._done:
             # self._env.reset(seed=self._random.randint(0, 2 ** 31 - 1))
-            self.load_habitat(self.habitat_id)
+            # load a new random habitat
+            self.load_random_habitat()
             self._done = False
             self._bad_spot = False
             return self._obs(0.0, is_first=True)
         elif self._bad_spot:
+            # ignore bad spot. Our path planning can now recover. For plan not found it will just get usual penalty
+            # and carry on.
+            #self.choose_random_placement_in_habitat()
+
+            # No, do not ignore, we can still get a series of bad spots and hang the process.
             self.choose_random_placement_in_habitat()
             self._bad_spot = False
         # raw_action = np.array(self._actions[action['action']], np.intc)
@@ -315,10 +371,11 @@ class AI2ThorEnv(embodied.Env):
         #print("AE: Execute Action time: ", (time.time() - ets))
         #rts = time.time()
         #reward = self.current_reward()
-        reward = self.sparse_reward()
+        #reward = self.sparse_reward()
+        reward = self.path_progress_reward()
 
         #print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
-        self._done = self.have_we_arrived(0.25)
+        self._done = self.have_we_arrived(0.5)
         return self._obs(reward, is_last=self._done)
 
     # Returns the observations from the last performed step
