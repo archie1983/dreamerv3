@@ -22,4 +22,4 @@ python navigate_ae.py --configs ai2thorae --batch_size 1 --run.envs 1 --script e
 2nd training, sparse reward with 1000 for reaching goal and penalty of -1 for each step taken : /home/elksnis/logdir/20250729T210623/ckpt/20250730T092344F569475
 
 
-python dreamerv3/main.py --configs ai2thorae --batch_size 2 --run.envs 2 --logdir "/home/elksnis/logdir/20250804T110439"
+python dreamerv3/main.py --configs ai2thorae --batch_size 2 --run.envs 2 --logdir "/home/elksnis/logdir/20250812T114416"

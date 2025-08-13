@@ -359,8 +359,15 @@ class AI2ThorEnv(embodied.Env):
             # and carry on.
             #self.choose_random_placement_in_habitat()
 
-            # No, do not ignore, we can still get a series of bad spots and hang the process.
-            self.choose_random_placement_in_habitat()
+            # No, do not ignore, we can still get a series of bad spots and hang the process (e.g. habitat 46 iirc
+            # supposedly has like 4 rooms, but only 2 can be accessed or something similar.
+            # Instead if choosing a good random placement has failed 10 times, then catch the error and load
+            # a different habitat.
+            try:
+                self.choose_random_placement_in_habitat()
+            except ValueError as e:
+                self.load_random_habitat()
+
             self._bad_spot = False
         # raw_action = np.array(self._actions[action['action']], np.intc)
         raw_action = index_to_action(int(action['action']))
