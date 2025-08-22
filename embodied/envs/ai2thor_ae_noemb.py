@@ -70,7 +70,10 @@ class AI2ThorEnv():
         # from all sorts of different points.
         self.current_target_point = None
 
-        self.habitat_id = level
+        self.habitat_id = level # redundant - we load random habitats and not some level
+
+        # Selection of what we want to target - room centres or doors
+        self.doors_or_centre = True
 
         # Dreamer stuff
         self._size = size
@@ -234,16 +237,18 @@ class AI2ThorEnv():
 
             # We've just been put in a random place in a habitat. We want to move now to where we want to go,
             # e.g., middle of the room, a door, etc.. For that we need to plan a path to there.
-            #point_for_room_search = (p[0], "", p[1])
-            #print("point_for_room_search: ", point_for_room_search)
-            #self.current_target_point = self.find_room_centre_target(point_for_room_search)
-
             try:
-                self.current_target_point = self.nu.find_door_target(place_with_rtn,
-                                                                     self.rooms_in_habitat,
-                                                                     self.reachable_positions,
-                                                                     self.controller)
-                # print("self.current_target_point: ", self.current_target_point)
+                if (self.doors_or_centre):
+                    self.current_target_point = self.nu.find_door_target(place_with_rtn,
+                                                                         self.rooms_in_habitat,
+                                                                         self.reachable_positions,
+                                                                         self.controller)
+                    # print("self.current_target_point: ", self.current_target_point)
+                else:
+                    point_for_room_search = (p[0], "", p[1])
+                    # print("point_for_room_search: ", point_for_room_search)
+                    self.current_target_point = self.find_room_centre_target(point_for_room_search)
+
                 cur_pos = self.rnc.get_agent_pos_and_rotation()
                 self.initial_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
                                                                                  self.current_target_point,

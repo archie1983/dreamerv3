@@ -7,7 +7,6 @@ import functools, re, zlib, time
 #print('\n'.join(sys.path))
 
 #import deepmind_lab
-import embodied
 import elements
 import numpy as np
 
@@ -19,8 +18,7 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
                                               action_to_index, index_to_action, inverted_action_mapping,
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
-                                              get_all_objects_of_type)
-
+                                              get_all_objects_of_type, is_point_inside_room_ground_truth)
 
 from thortils import launch_controller
 from thortils.utils.math import sep_spatial_sample
@@ -33,6 +31,10 @@ from thortils.navigation import get_shortest_path_to_object, get_navigation_acti
 from thortils.agent import thor_reachable_positions, thor_agent_position, thor_agent_pose
 from thortils.utils import roundany, PriorityQueue, normalize_angles, euclidean_dist
 from thortils.constants import MOVEMENT_PARAMS
+from shapely.geometry import Point
+
+import embodied
+
 
 #from PIL import Image
 
@@ -71,7 +73,10 @@ class AI2ThorEnv(embodied.Env):
         # from all sorts of different points.
         self.current_target_point = None
 
-        self.habitat_id = level
+        self.habitat_id = level # redundant - we load random habitats and not some level
+
+        # Selection of what we want to target - room centres or doors
+        self.doors_or_centre = True
 
         # Dreamer stuff
         self._size = size
@@ -229,26 +234,24 @@ class AI2ThorEnv(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            #print("Placement: ", place_with_rtn)
+            print("Placement: ", place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
 
             # We've just been put in a random place in a habitat. We want to move now to where we want to go,
             # e.g., middle of the room, a door, etc.. For that we need to plan a path to there.
-            point_for_room_search = (p[0], "", p[1])
-            room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
-            room_centre = room_of_placement[2]
-
-            # Now plan path to the centre of the room
-            #            try:
-            #                path_and_plan = self.get_path_to_target_point(room_centre)
-            #            except ValueError as e:
-            #                # If the path could not be planned, then drop it and carry on with the next one
-            #                print(f"ERROR: {e}")
-            #                continue
-
-            self.current_target_point = room_centre
             try:
+                if (self.doors_or_centre):
+                    self.current_target_point = self.nu.find_door_target(place_with_rtn,
+                                                                         self.rooms_in_habitat,
+                                                                         self.reachable_positions,
+                                                                         self.controller)
+                    # print("self.current_target_point: ", self.current_target_point)
+                else:
+                    point_for_room_search = (p[0], "", p[1])
+                    # print("point_for_room_search: ", point_for_room_search)
+                    self.current_target_point = self.find_room_centre_target(point_for_room_search)
+
                 cur_pos = self.rnc.get_agent_pos_and_rotation()
                 self.initial_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
                                                                                  self.current_target_point,
@@ -281,6 +284,16 @@ class AI2ThorEnv(embodied.Env):
             self.best_path_length = self.initial_path_length
 
             path_planned = True
+
+    ##
+    # Finds the centre of the current room given the current position and the rooms in habitat.
+    ##
+    def find_room_centre_target(self, point_for_room_search):
+        # We've just been put in a random place in a habitat. We want to move now to where we want to go,
+        # e.g., middle of the room, a door, etc.. For that we need to plan a path to there.
+        room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+        room_centre = room_of_placement[2]
+        return room_centre
 
     # Get all reachable positions and store them in a variable.
     def update_reachable_positions(self):
@@ -467,18 +480,18 @@ if __name__ == "__main__":
         'action': els,
         'reset': elements.Space(bool),
     }
-    dml = AI2ThorEnv(10)
+    dml = AI2ThorEnv(43)
+    dml.load_habitat(43)
 
-    doors = get_all_objects_of_type(dml.controller, "DoorWay")
-    print(doors[0])
+    # for i in range(10):
+    #     act = {k: v.sample() for k, v in act_space.items()}
+    #     print(act)
+    #     a = index_to_action(int(act['action']))
+    #     print(a)
+    #     act['reset'] = False
+    #     observation = dml.step(act)
 
-    for i in range(10):
-        act = {k: v.sample() for k, v in act_space.items()}
-        print(act)
-        a = index_to_action(int(act['action']))
-        print(a)
-        act['reset'] = False
-        observation = dml.step(act)
+    dml.choose_random_placement_in_habitat()
 
     dml.close()
 
