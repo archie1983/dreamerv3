@@ -286,7 +286,7 @@ class AI2ThorEnv():
         # print(raw_action)
         #reward = self._env.step(raw_action, num_steps=self._repeat)
         ets = time.time()
-        self.rnc.execute_action(raw_action)
+        self.rnc.execute_action(raw_action, adhere_to_grid = True)
         #print("AE: Execute Action time: ", (time.time() - ets))
         rts = time.time()
         reward = self.current_reward()

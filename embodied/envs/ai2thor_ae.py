@@ -18,7 +18,8 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
                                               action_to_index, index_to_action, inverted_action_mapping,
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
-                                              get_all_objects_of_type, is_point_inside_room_ground_truth)
+                                              get_all_objects_of_type, is_point_inside_room_ground_truth,
+                                              create_full_grid_from_room_layout, add_buffer_to_unreachable)
 
 from thortils import launch_controller
 from thortils.utils.math import sep_spatial_sample
@@ -29,15 +30,12 @@ from thortils.controller import _resolve
 from thortils.navigation import get_shortest_path_to_object, get_navigation_actions, _round_pose, _same_pose, transform_pose, _valid_pose, _cost
 
 from thortils.agent import thor_reachable_positions, thor_agent_position, thor_agent_pose
-from thortils.utils import roundany, PriorityQueue, normalize_angles, euclidean_dist
+from thortils.utils import roundany, PriorityQueue, normalize_angles, euclidean_dist, getch
 from thortils.constants import MOVEMENT_PARAMS
 from shapely.geometry import Point
-
 import embodied
 
-
 #from PIL import Image
-
 
 class AI2ThorEnv(embodied.Env):
     TOKENIZER = re.compile(r'([A-Za-z_]+|[^A-Za-z_ ]+)')
@@ -53,8 +51,10 @@ class AI2ThorEnv(embodied.Env):
         self.rooms_in_habitat = None
         self.current_path_length = 1000
         self.reachable_positions = None
-        self.grid_size = 0.0
-        self.nu = NavigationUtils()
+        self.grid_size = 0.125 # how fine do we want the 2D grid to be.
+        self.reward_close_enough = 0.125 # how close to the target is close enough for the purposes of reward.
+        self.plan_close_enough = 0.25  # how close to the target is close enough for the purposes of path planning.
+        self.nu = NavigationUtils(step=self.grid_size)
         self.step_time = 0.0
         # If we get into a bad spot from which for whatever reason we can't plan a path out, then we'll set this to
         # True and based on it will teleport to a new place when we see this set.
@@ -153,40 +153,69 @@ class AI2ThorEnv(embodied.Env):
     def load_habitat(self, habitat_id):
         # load required habitat
         #print("AE: haba: ", habitat_id)
-        habitat = self.atu.load_proctor_habitat(int(habitat_id))
+        self.habitat = self.atu.load_proctor_habitat(int(habitat_id))
 
         # Launch a controller for the loaded habitat. If we already have a controller,
         # then reset it instead of loading a new one.
         if (self.controller == None):
-            self.controller = launch_controller({"scene": habitat,
+            self.controller = launch_controller({"scene": self.habitat,
                                                  "VISIBILITY_DISTANCE": 3.0,
                                                  "headless": False,
                                                  "IMAGE_WIDTH": 64,
-                                                 "IMAGE_HEIGHT": 64
+                                                 "IMAGE_HEIGHT": 64,
+                                                 "GRID_SIZE": self.grid_size
                                                  # "RENDER_DEPTH": False,
                                                  # "RENDER_INSTANCE_SEGMENTATION": False,
                                                  # "RENDER_IMAGE": True
                                                  # "IMAGE_WIDTH": 64,
                                                  # "IMAGE_HEIGHT": 64
                                                  })
-            self.rnc.set_controller(
-                self.controller)  # This allows our control scripts to interact with AI2-THOR environment
+            self.rnc.set_controller(self.controller)  # This allows our control scripts to interact with AI2-THOR environment
+            self.atu.set_controller(self.controller)
         else:
-            self.controller.reset(habitat)
+            self.controller.reset(self.habitat)
             # self.reset_state()
             self.rnc.reset_state()
             # self.rnc.set_controller(self.controller)
 
-        # In this habitat we have these rooms
-        self.rooms_in_habitat = get_rooms_ground_truth(habitat)
-
         # Take a snapshot of all available positions- these won't change while we're in this habitat,
         # so no need to re-do them everytime we plan a path.
-        self.grid_size = self.controller.initialization_parameters["gridSize"]
-        self.reachable_positions = self.update_reachable_positions()
+        #self.grid_size = self.controller.initialization_parameters["gridSize"]
+        self.reachable_positions, self.unreachable_postions, self.full_grid, self.rooms_in_habitat = self.update_navigation_artifacts(self.habitat)
 
         # Now place the robot in a random position and figure out the target from there.
         self.choose_random_placement_in_habitat()
+        #self.choose_specific_placement_in_habitat()
+
+    def choose_specific_placement_in_habitat(self):
+        #params["position"] = dict(x=7.0, y=0.9009997844696045, z=5.625)
+        #params["rotation"] = dict(x=0.0, y=270, z=0.0)
+        # self.controller.step(action="Teleport", **pos_navigate_to)
+        place_with_rtn = (5.62, 3.5, 270)
+        self.rnc.teleport_to(place_with_rtn)
+        try:
+            self.current_target_point = self.choose_door_target(place_with_rtn)
+        except ValueError as err:
+            print("O", err)
+
+        #print("AE: Path Length: ", path_length)
+        (cur_path, reachable_positions, start, dest) = self.nu.get_last_path_and_params()
+        print("AE: Path: ", cur_path)
+        self.atu.visualise_path2(cur_path, self.reachable_positions, self.unreachable_postions, self.rooms_in_habitat, start, dest,
+                            show_unreachable_pos = False,
+                            show_reachable_pos = True)
+        k = getch()
+
+        cur_pos = self.rnc.get_agent_pos_and_rotation()
+        target_point = Point(5.12, 4.0)#((3.12, 0.88, 4.75), (0.0, 180, 0.0))
+        door_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
+                                                                         target_point,
+                                                                         self.reachable_positions,
+                                                                         close_enough=self.plan_close_enough,
+                                                                         step=self.grid_size,
+                                                                         debug=True)
+        print("AE: door_path_length: ", door_path_length)
+        k = getch()
 
     ##
     # Here we will select a number of random placements and then choose one to navigate from it
@@ -216,8 +245,7 @@ class AI2ThorEnv(embodied.Env):
 
         # reachable_positions = tt.thor_reachable_positions(self.controller)
         # self.reachable_positions
-        placements = sep_spatial_sample(self.reachable_positions, sep, num_stops,
-                                        rnd=rnd)
+        placements = sep_spatial_sample(self.reachable_positions, sep, num_stops, rnd=rnd)
 
         # print(placements)
 
@@ -242,10 +270,7 @@ class AI2ThorEnv(embodied.Env):
             # e.g., middle of the room, a door, etc.. For that we need to plan a path to there.
             try:
                 if (self.doors_or_centre):
-                    self.current_target_point = self.nu.find_door_target(place_with_rtn,
-                                                                         self.rooms_in_habitat,
-                                                                         self.reachable_positions,
-                                                                         self.controller)
+                    self.current_target_point = self.choose_door_target(place_with_rtn)
                     # print("self.current_target_point: ", self.current_target_point)
                 else:
                     point_for_room_search = (p[0], "", p[1])
@@ -255,7 +280,9 @@ class AI2ThorEnv(embodied.Env):
                 cur_pos = self.rnc.get_agent_pos_and_rotation()
                 self.initial_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
                                                                                  self.current_target_point,
-                                                                                 self.reachable_positions)
+                                                                                 self.reachable_positions,
+                                                                                 close_enough=self.plan_close_enough,
+                                                                                 step=self.grid_size)
             except ValueError as e:
                 # If the path could not be planned, then drop it and carry on with the next one
                 #print(f"ERROR: {e}")
@@ -295,13 +322,63 @@ class AI2ThorEnv(embodied.Env):
         room_centre = room_of_placement[2]
         return room_centre
 
+    ##
+    # Go through all the doors and find the most appropriate as a target, then add a little bit extra so that
+    # we end up going through the door.
+    # place_with_rtn: Place with rotation, e.g.: (6.62, 6.25, 180)
+    ##
+    def choose_door_target(self, place_with_rtn):
+        current_target_point = None
+        try:
+            current_target_point = self.nu.find_door_target(place_with_rtn,
+                                                       self.rooms_in_habitat,
+                                                       self.reachable_positions,
+                                                       self.habitat,
+                                                       self.controller, close_enough=self.plan_close_enough, step=self.grid_size, extend_path=True)
+
+            #t1 = time.time()
+            pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]), (0.0, place_with_rtn[2], 0.0)) # place_with_rtn in AI2-Thor format
+            path_length = self.nu.get_path_cost_to_target_point(pose,
+                                                                current_target_point,
+                                                                self.reachable_positions, close_enough=self.plan_close_enough, step=self.grid_size)
+            #print("AE: path plan time: ", (time.time() - t1))
+        except ValueError as e:
+            path_length = 0
+            #print("AE: No Path Found", e)
+            print('£', end='', sep='')
+
+        if current_target_point == None:
+            raise ValueError("No suitable doors were found")
+
+        #print("AE: Path Length: ", path_length)
+        (cur_path, reachable_positions, start, dest) = self.nu.get_last_path_and_params()
+        #print("AE: Path: ", cur_path)
+        #atu.visualise_path2(cur_path, reachable_positions, unreachable_postions, rooms_in_habitat, start, dest,
+        #                    show_unreachable_pos=False,
+        #                    show_reachable_pos=False)
+        # atu.visualise_path2(cur_path, reachable_positions, buf_unreachable_pos, rooms_in_habitat, start, dest, show_unreachable_pos=True)
+        return current_target_point
+
     # Get all reachable positions and store them in a variable.
-    def update_reachable_positions(self):
+    def update_navigation_artifacts(self, house):
         reachable_positions = [
-            tuple(map(lambda x: roundany(x, self.grid_size), pos))
+            tuple(map(lambda x: round(roundany(x, self.grid_size), 2), pos))
             for pos in thor_reachable_positions(self.controller)]
         # print(reachable_positions, self.grid_size)
-        return reachable_positions
+
+        # In this habitat we have these rooms
+        rooms_in_habitat = get_rooms_ground_truth(house)
+        # print(house["rooms"])
+        # print("reachable_positions: ", reachable_positions)
+        # AE: Path length infra set up
+        # pos_ba = thor_reachable_positions(controller, by_axes = True)
+        # print("AE, by axes: ", pos_ba)
+        full_grid = create_full_grid_from_room_layout(rooms_in_habitat, step=self.grid_size)
+        full_grid = [tuple(map(lambda x: round(x, 2), pos)) for pos in full_grid]
+        unreachable_postions = set(full_grid) - set(reachable_positions)
+        #(safe_pos, buf_unreachable_pos) = add_buffer_to_unreachable(set(reachable_positions), set(full_grid), step=self.grid_size)
+
+        return reachable_positions, unreachable_postions, full_grid, rooms_in_habitat
 
     # This function will calculate path length to the desired point from the current position.
     def get_current_path_length(self):
@@ -330,7 +407,7 @@ class AI2ThorEnv(embodied.Env):
     def sparse_reward(self):
         self.get_current_path_length()
         #return 1000 if self.have_we_arrived(0.25) else -1
-        return 20 if self.have_we_arrived(0.5) else -1
+        return 20 if self.have_we_arrived(self.reward_close_enough) else -1
 
     ##
     # AE: A reward that penalises going back or staying in place and rewards progress.
@@ -338,7 +415,7 @@ class AI2ThorEnv(embodied.Env):
     def path_progress_reward(self):
         cur_path_length = self.get_current_path_length()
 
-        if self.have_we_arrived(0.5):
+        if self.have_we_arrived(self.reward_close_enough):
             # If we're there, then give 20
             return 20
         elif self.best_path_length > cur_path_length:
@@ -388,7 +465,7 @@ class AI2ThorEnv(embodied.Env):
         # print(raw_action)
         # reward = self._env.step(raw_action, num_steps=self._repeat)
         #ets = time.time()
-        self.rnc.execute_action(raw_action)
+        self.rnc.execute_action(raw_action, grid_size=self.grid_size, adhere_to_grid=True)
         #print("AE: Execute Action time: ", (time.time() - ets))
         #rts = time.time()
         #reward = self.current_reward()
@@ -396,7 +473,7 @@ class AI2ThorEnv(embodied.Env):
         reward = self.path_progress_reward()
 
         #print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
-        self._done = self.have_we_arrived(0.5)
+        self._done = self.have_we_arrived(self.reward_close_enough)
         return self._obs(reward, is_last=self._done)
 
     # Returns the observations from the last performed step
@@ -481,7 +558,7 @@ if __name__ == "__main__":
         'reset': elements.Space(bool),
     }
     dml = AI2ThorEnv(43)
-    dml.load_habitat(43)
+    dml.load_habitat(43) # load habitat and choose first random placement
 
     # for i in range(10):
     #     act = {k: v.sample() for k, v in act_space.items()}
@@ -491,7 +568,7 @@ if __name__ == "__main__":
     #     act['reset'] = False
     #     observation = dml.step(act)
 
-    dml.choose_random_placement_in_habitat()
+    dml.choose_random_placement_in_habitat() # choose another placement.
 
     dml.close()
 
