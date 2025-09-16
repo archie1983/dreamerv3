@@ -387,7 +387,10 @@ class AI2ThorEnv(embodied.Env):
             cur_pos = self.rnc.get_agent_pos_and_rotation()
             self.current_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
                                                                              self.current_target_point,
-                                                                             self.reachable_positions)
+                                                                             self.reachable_positions,
+                                                                             close_enough=self.plan_close_enough,
+                                                                             step=self.grid_size)
+
         except ValueError as e:
             #print(f"ERROR: {e}")
             #print("Using previous current_path_length: ", self.current_path_length)
