@@ -60,6 +60,7 @@ class AI2ThorEnv(embodied.Env):
         # True and based on it will teleport to a new place when we see this set.
         self._bad_spot = False
         self._bad_spot_cnt = 0
+        self._total_reward_for_this_run = 0
 
         # when we select a random position and plan path to the room centre, we will assign a value to this parameter
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
@@ -262,7 +263,7 @@ class AI2ThorEnv(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            print("Placement: ", place_with_rtn)
+            #print("Placement: ", place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
 
@@ -471,9 +472,11 @@ class AI2ThorEnv(embodied.Env):
         #reward = self.current_reward()
         #reward = self.sparse_reward()
         reward = self.path_progress_reward()
+        self._total_reward_for_this_run += reward
 
         #print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
         self._done = self.have_we_arrived(self.reward_close_enough)
+
         return self._obs(reward, is_last=self._done)
 
     # Returns the observations from the last performed step
