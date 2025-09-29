@@ -65,6 +65,10 @@ class AI2ThorEnv(embodied.Env):
         self._bad_spot_cnt = 0
         self._total_reward_for_this_run = 0
 
+        # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
+        self.hab_min = 0
+        self.hab_max = 0
+
         # when we select a random position and plan path to the room centre, we will assign a value to this parameter
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
         # further points.
@@ -100,10 +104,22 @@ class AI2ThorEnv(embodied.Env):
         if mode == 'train':
             # if level.endswith('_test'):
             #  level = level.replace('_test', '_train')
-            pass
+            print("AE: TRAIN")
+            # Training on 500 habitats depending on their suitability
+            self.hab_min = 100
+            self.hab_max = 600
         elif mode == 'eval':
             # config.update(allowHoldOutLevels='true', mixerSeed=0x600D5EED)
-            pass
+            print("AE: EVAL")
+            # Evaluating on 200 habitats depending on their suitability
+            self.hab_min = 700
+            self.hab_max = 900
+        elif mode == 'eval_only':
+            # config.update(allowHoldOutLevels='true', mixerSeed=0x600D5EED)
+            print("AE: EVAL_ONLY")
+            # Evaluating on 200 habitats depending on their suitability
+            self.hab_min = 700
+            self.hab_max = 900
         else:
             raise NotImplementedError(mode)
         config = {k: str(v) for k, v in config.items()}
@@ -140,11 +156,11 @@ class AI2ThorEnv(embodied.Env):
         self.controller.stop()
 
     def load_random_habitat(self):
-        # choose a random habitat from a space of train_10 till train_200
+        # choose a random habitat from a space of given habitats by self.hab_max and self.hab_min
         loaded = False
         while not loaded:
             try:
-                sp = elements.Space(np.int32, (), 100, 400)
+                sp = elements.Space(np.int32, (), self.hab_min, self.hab_max)
                 self.habitat_id = sp.sample()
                 # load_habitat will also call self.choose_random_placement_in_habitat(), which will in turn calculate
                 # current distance cost to the target
@@ -321,7 +337,7 @@ class AI2ThorEnv(embodied.Env):
                 # If the path could not be planned, then drop it and carry on with the next one
                 #print(f"ERROR: {e}")
                 if placement_attempts <= 10:
-                    print(".", sep="", end="")
+                    print('.', sep='', end='')
                     continue
                 else:
                     # If we have tried for 10 times already, then give up with this habitat

@@ -48,6 +48,12 @@ class Navigator():
         for key, value in self.acts.items():
             print("AE: ACTS: key: ", key, " val: ", value)
 
+        ## turning list values into discrete values, e.g.:
+        # key:  action  val:  [0]
+        # key:  reset  val:  [ True]
+        # INTO:
+        # key:  action  val:  0
+        # key:  reset  val:  True
         acts = [{k: v[i] for k, v in self.acts.items()} for i in range(1)]
 
         # AE: Debug
@@ -59,6 +65,7 @@ class Navigator():
 
         # AE: Do the intitial step with the action['reset'] == True to get the first observation
         print("AE: reset::acts[0] : ", acts[0])
+        # at this point acts[0] ==  {'action': np.int32(0), 'reset': np.True_}
         self.obs = self.env.step(acts[0])
         #print("AE, driver.py: self.carry: ", self.carry)
         # Now that we have self.carry, we can start inferencing from our world model - feed it observations and get navigation decisions.

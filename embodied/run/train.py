@@ -73,6 +73,10 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
   driver.on_step(replay.add)
   driver.on_step(logfn)
 
+  # We will not just take a sample and train on that sample with reward. What we will do instead
+  # is get many training samples and put them into a stream. Then when we've got enough samples,
+  # we will construct a batch and train on that batch. This will help us set up a replay pipeline
+  # that we will be constructing batches from.
   stream_train = iter(agent.stream(make_stream(replay, 'train')))
   stream_report = iter(agent.stream(make_stream(replay, 'report')))
 
@@ -82,9 +86,13 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
   def trainfn(tran, worker):
     if len(replay) < args.batch_size * args.batch_length:
       return
+    # We have some number of steps done at this point. So we go through them and construct batches from them
+    # according to our configuration, then we feed those batches to the network for training.
     for _ in range(should_train(step)):
       with elements.timer.section('stream_next'):
+        # And this is where we construct a batch from the accumulated steps so that we can train on it.
         batch = next(stream_train)
+      print('b', sep='', end='')
       carry_train[0], outs, mets = agent.train(carry_train[0], batch)
       train_fps.step(batch_steps)
       if 'replay' in outs:

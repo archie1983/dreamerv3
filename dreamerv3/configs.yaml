@@ -198,7 +198,11 @@ loconav:
 
 ai2thorae:
   task: ai2thorae_10
-  run: {steps: 2.6e7, train_ratio: 32}
+  run: {steps: 2.6e7, train_ratio: 64}
+
+ai2thorae_eval:
+  task: ai2thorae_10
+  run: {steps: 1000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
 
 multicpu:
   batch_size: 12

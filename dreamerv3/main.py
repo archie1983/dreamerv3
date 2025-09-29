@@ -267,6 +267,10 @@ def make_env(config, index, **overrides):
     kwargs['seed'] = hash((config.seed, index)) % (2 ** 32 - 1)
   if kwargs.pop('use_logdir', False):
     kwargs['logdir'] = elements.Path(config.logdir) / f'env{index}'
+
+  # AE: Specially for our env, we want to pass to it what script this is: eval, train or something else
+  if (suite == "ai2thorae"):
+      kwargs["mode"] = config.script
   # Now call that class, instantiate it (e.g., DMLab class from embodied.envs.dmlab).
   env = ctor(task, **kwargs)
   # Now use that instance of the environment class- wrap_env it and then return whatever it returns
