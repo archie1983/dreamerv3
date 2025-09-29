@@ -40,6 +40,9 @@ import embodied
 class AI2ThorEnv(embodied.Env):
     TOKENIZER = re.compile(r'([A-Za-z_]+|[^A-Za-z_ ]+)')
 
+    ##
+    # level parameter is redundant - we load random habitats and not some level
+    ##
     def __init__(
             self, level, repeat=4, size=(64, 64), mode='train',
             episodic=True, seed=None):
@@ -74,7 +77,9 @@ class AI2ThorEnv(embodied.Env):
         # from all sorts of different points.
         self.current_target_point = None
 
-        self.habitat_id = level # redundant - we load random habitats and not some level
+        # upon beginning we don't have any habitat loaded yet, but we will check this variable to determine if we have
+        self.habitat_id = None
+        self.explored_placements_in_current_habitat = []
 
         # Selection of what we want to target - room centres or doors
         self.doors_or_centre = True
@@ -141,6 +146,8 @@ class AI2ThorEnv(embodied.Env):
             try:
                 sp = elements.Space(np.int32, (), 100, 400)
                 self.habitat_id = sp.sample()
+                # load_habitat will also call self.choose_random_placement_in_habitat(), which will in turn calculate
+                # current distance cost to the target
                 self.load_habitat(self.habitat_id)
                 # enfore at least 2 rooms in a habitat
                 if len(self.rooms_in_habitat) >= 2:
@@ -149,12 +156,37 @@ class AI2ThorEnv(embodied.Env):
                 continue
 
     ##
+    # This kind of combines 2 functions: load_random_habitat and choose_random_placement_in_habitat.
+    # The idea is that usually we only want to load a different starting point within the same habitat,
+    # but sometimes we will want to load a new habitat entirely. Also, if we have exhausted all usable random
+    # places in the given habitat, then we want to load a new habitat. This is all best handled in one place-
+    # this function.
+    ##
+    def load_next_start_point(self):
+        # if nothing has been loaded, then we just load a brand new habitat - Simple
+        if self.habitat_id is None:
+            self.load_random_habitat()
+        else:
+            # otherwise, we want to look at what have we explored and what is available
+            # if we have already explored 20 random locations in this habitat, then it's time to move on
+            if len(self.explored_placements_in_current_habitat) > 20:
+                self.load_random_habitat()
+            else:
+                # otherwise try to load the next random placement (it will attempt a few times, currently 10).
+                # If that fails, then we load new habitat.
+                try:
+                    self.choose_random_placement_in_habitat()
+                except ValueError as e:
+                    self.load_random_habitat()
+
+    ##
     # Load the given habitat- load it, and put agent in a random place
     ##
     def load_habitat(self, habitat_id):
         # load required habitat
         #print("AE: haba: ", habitat_id)
         self.habitat = self.atu.load_proctor_habitat(int(habitat_id))
+        self.explored_placements_in_current_habitat = []
 
         # Launch a controller for the loaded habitat. If we already have a controller,
         # then reset it instead of loading a new one.
@@ -264,6 +296,7 @@ class AI2ThorEnv(embodied.Env):
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
             #print("Placement: ", place_with_rtn)
+            self.explored_placements_in_current_habitat.append(place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
 
@@ -341,7 +374,9 @@ class AI2ThorEnv(embodied.Env):
             pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]), (0.0, place_with_rtn[2], 0.0)) # place_with_rtn in AI2-Thor format
             path_length = self.nu.get_path_cost_to_target_point(pose,
                                                                 current_target_point,
-                                                                self.reachable_positions, close_enough=self.plan_close_enough, step=self.grid_size)
+                                                                self.reachable_positions,
+                                                                close_enough=self.plan_close_enough,
+                                                                step=self.grid_size)
             #print("AE: path plan time: ", (time.time() - t1))
         except ValueError as e:
             path_length = 0
@@ -397,41 +432,87 @@ class AI2ThorEnv(embodied.Env):
             print('!', end='', sep='')
             self._bad_spot = True
             self._bad_spot_cnt += 1
+            raise e # pass it on because reward calculation also needs to know
 
         return self.current_path_length
 
     # Calculates the reward for the current position of the agent. It is based on the length of the initial
     # path and the current path to the target.
     def current_reward(self):
-        return (self.initial_path_length - self.get_current_path_length()) / self.initial_path_length
+        try:
+            reward = (self.initial_path_length - self.get_current_path_length()) / self.initial_path_length
+        except ValueError as e:
+            reward = 0
+
+        return reward
 
     ##
     # AE: A sparse reward- giving reward only when we reach the target and only once. In all other cases give penalty of -1
     ##
     def sparse_reward(self):
-        self.get_current_path_length()
+        try:
+            self.get_current_path_length()
+            reward = 20 if self.have_we_arrived(self.reward_close_enough) else -1
+        except ValueError as e:
+            reward = 0
         #return 1000 if self.have_we_arrived(0.25) else -1
-        return 20 if self.have_we_arrived(self.reward_close_enough) else -1
+        return reward
 
     ##
     # AE: A reward that penalises going back or staying in place and rewards progress.
     ##
     def path_progress_reward(self):
-        cur_path_length = self.get_current_path_length()
+        try:
+            cur_path_length = self.get_current_path_length()
+            if self.have_we_arrived(self.reward_close_enough):
+                # If we're there, then give 20
+                reward = 20
+            elif self.best_path_length > cur_path_length:
+                # If we improved the path, then give 1
+                self.best_path_length = cur_path_length
+                reward = 1
+            elif self.best_path_length == cur_path_length:
+                # if we stayed in place, then small penalty
+                reward = -0.1
+            else:
+                # If we went backwards then penalise
+                reward = -0.3
+        except ValueError as e:
+            reward = 0
 
-        if self.have_we_arrived(self.reward_close_enough):
-            # If we're there, then give 20
-            return 20
-        elif self.best_path_length > cur_path_length:
-            # If we improved the path, then give 1
-            self.best_path_length = cur_path_length
-            return 1
-        elif self.best_path_length == cur_path_length:
-            # if we stayed in place, then small penalty
-            return -0.1
-        else:
-            # If we went backwards then penalise
-            return -0.3
+        return reward
+
+    ##
+    # AE: A reward that penalises going back or staying in place and rewards progress.
+    ##
+    def path_progress_reward2(self):
+        prev_path_length = self.current_path_length
+        try:
+            cur_path_length = self.get_current_path_length()
+            if self.have_we_arrived(self.reward_close_enough):
+                # If we're there, then give 20
+                reward = 20
+            elif self.best_path_length > cur_path_length:
+                # If we improved the path, then give the improvement factor as a score
+                reward = self.best_path_length - cur_path_length
+                self.best_path_length = cur_path_length
+            elif self.best_path_length == cur_path_length:
+                # if we stayed in place, then 0 or small penalty
+                reward = -0.01
+            elif self.best_path_length < cur_path_length and prev_path_length < cur_path_length:
+                # if path increased from before, then penalty by the increase
+                reward = prev_path_length - cur_path_length
+            elif self.best_path_length < cur_path_length and prev_path_length >= cur_path_length:
+                # if path decreased from before, but still longer than best path, then 0 or small penalty
+                reward = -0.02
+            else:
+                # Shouldn't happen. If it does, then above code has error.
+                print("CHECK path_progress_reward2 CODE!!!")
+                exit()
+        except ValueError as e:
+            reward = 0
+
+        return reward
 
     # Compares the current reward with the maximum reward. If they're the same, then we have arrived.
     def have_we_arrived(self, epsilon = 0.0):
@@ -444,26 +525,13 @@ class AI2ThorEnv(embodied.Env):
         # AE: If this is a terminal state or we need to end, then reset environment
         if action['reset'] or self._done:
             # self._env.reset(seed=self._random.randint(0, 2 ** 31 - 1))
-            # load a new random habitat
-            self.load_random_habitat()
+            # load a new random place or habitat
+            self.load_next_start_point()
             self._done = False
             self._bad_spot = False
             return self._obs(0.0, is_first=True)
-        elif self._bad_spot:
-            # ignore bad spot. Our path planning can now recover. For plan not found it will just get usual penalty
-            # and carry on.
-            #self.choose_random_placement_in_habitat()
 
-            # No, do not ignore, we can still get a series of bad spots and hang the process (e.g. habitat 46 iirc
-            # supposedly has like 4 rooms, but only 2 can be accessed or something similar.
-            # Instead if choosing a good random placement has failed 10 times, then catch the error and load
-            # a different habitat.
-            try:
-                self.choose_random_placement_in_habitat()
-            except ValueError as e:
-                self.load_random_habitat()
-
-            self._bad_spot = False
+        # otherwise, let's execute the requested action
         # raw_action = np.array(self._actions[action['action']], np.intc)
         raw_action = index_to_action(int(action['action']))
         # print(raw_action)
@@ -474,13 +542,22 @@ class AI2ThorEnv(embodied.Env):
         #rts = time.time()
         #reward = self.current_reward()
         #reward = self.sparse_reward()
-        reward = self.path_progress_reward()
-        self._total_reward_for_this_run += reward
+        reward = self.path_progress_reward2()
 
-        #print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
-        self._done = self.have_we_arrived(self.reward_close_enough)
+        ## If during reward calculation our current path length calculation failed, then we're in a bad spot
+        # and should load next place or next habitat.
+        if self._bad_spot:
+            self.load_next_start_point()
+            self._done = False
+            self._bad_spot = False
+            return self._obs(0.0, is_first=True)
+        else:
+            self._total_reward_for_this_run += reward
 
-        return self._obs(reward, is_last=self._done)
+            #print("AE: Reward time: ", (time.time() - rts), " reward: ", reward)
+            self._done = self.have_we_arrived(self.reward_close_enough)
+
+            return self._obs(reward, is_last=self._done)
 
     # Returns the observations from the last performed step
     def _obs(self, reward, is_first=False, is_last=False):

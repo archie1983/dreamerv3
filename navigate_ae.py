@@ -135,7 +135,7 @@ def main(argv=None):
         cp = elements.Checkpoint()
         cp.agent = agent
         # We can also load checkpoints or parts of a checkpoint from a different directory.
-        cp.load("/home/elksnis/logdir/20250716T225615/ckpt/20250717T095822F023824", keys=['agent'])
+        cp.load("/home/hp20024/robotics/latent_planning/dreamer_models/room_centre_1", keys=['agent'])
         #print(cp.agent)
 
         # Now make environment. TODO: We really should re-use the environment that was created inside make_agent.
