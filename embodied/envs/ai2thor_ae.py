@@ -177,10 +177,11 @@ class AI2ThorEnv(embodied.Env):
         if (self.controller == None):
             self.controller = launch_controller({"scene": self.habitat,
                                                  "VISIBILITY_DISTANCE": 3.0,
-                                                 "headless": False,
+                                                 "headless": True,
                                                  "IMAGE_WIDTH": 64,
                                                  "IMAGE_HEIGHT": 64,
-                                                 "GRID_SIZE": self.grid_size
+                                                 "GRID_SIZE": self.grid_size,
+                                                 "GPU_DEVICE": 1,
                                                  # "RENDER_DEPTH": False,
                                                  # "RENDER_INSTANCE_SEGMENTATION": False,
                                                  # "RENDER_IMAGE": True
