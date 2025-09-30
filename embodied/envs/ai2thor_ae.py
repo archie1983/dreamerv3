@@ -57,6 +57,7 @@ class AI2ThorEnv(embodied.Env):
         self.grid_size = 0.125 # how fine do we want the 2D grid to be.
         self.reward_close_enough = 0.125 # how close to the target is close enough for the purposes of reward.
         self.plan_close_enough = 0.25  # how close to the target is close enough for the purposes of path planning.
+        self.max_steps_per_episode = 15000
         self.nu = NavigationUtils(step=self.grid_size)
         self.step_time = 0.0
         # If we get into a bad spot from which for whatever reason we can't plan a path out, then we'll set this to
@@ -64,6 +65,7 @@ class AI2ThorEnv(embodied.Env):
         self._bad_spot = False
         self._bad_spot_cnt = 0
         self._total_reward_for_this_run = 0
+        self.step_count_in_current_episode = 0
 
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         self.hab_min = 0
@@ -312,7 +314,7 @@ class AI2ThorEnv(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            #print("Placement: ", place_with_rtn)
+            print("Placement: ", place_with_rtn)
             self.explored_placements_in_current_habitat.append(place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
@@ -537,6 +539,7 @@ class AI2ThorEnv(embodied.Env):
 
     # Advances the simulation using the selected action
     def step(self, action):
+        self.step_count_in_current_episode += 1
         #print("STEP T diff: ", (time.time() - self.step_time))
         #self.step_time = time.time()
         # AE: If this is a terminal state or we need to end, then reset environment
@@ -546,6 +549,7 @@ class AI2ThorEnv(embodied.Env):
             self.load_next_start_point()
             self._done = False
             self._bad_spot = False
+            self.step_count_in_current_episode = 0
             return self._obs(0.0, is_first=True)
 
         # otherwise, let's execute the requested action
@@ -563,10 +567,13 @@ class AI2ThorEnv(embodied.Env):
 
         ## If during reward calculation our current path length calculation failed, then we're in a bad spot
         # and should load next place or next habitat.
-        if self._bad_spot:
+        # Also skip to next habitat or start point if we've been too long in this one.
+        if self._bad_spot or self.step_count_in_current_episode > self.max_steps_per_episode:
             self.load_next_start_point()
             self._done = False
             self._bad_spot = False
+            self.step_count_in_current_episode  = 0
+            print("FORCED SCENE CHANGE!!!")
             return self._obs(0.0, is_first=True)
         else:
             self._total_reward_for_this_run += reward
