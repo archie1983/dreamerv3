@@ -515,13 +515,13 @@ class AI2ThorEnv(embodied.Env):
                 self.best_path_length = cur_path_length
             elif self.best_path_length == cur_path_length:
                 # if we stayed in place, then 0 or small penalty
-                reward = -0.01
+                reward = -0.1
             elif self.best_path_length < cur_path_length and prev_path_length < cur_path_length:
                 # if path increased from before, then penalty by the increase
                 reward = prev_path_length - cur_path_length
             elif self.best_path_length < cur_path_length and prev_path_length >= cur_path_length:
                 # if path decreased from before, but still longer than best path, then 0 or small penalty
-                reward = -0.02
+                reward = -0.2
             else:
                 # Shouldn't happen. If it does, then above code has error.
                 print("CHECK path_progress_reward2 CODE!!!")
