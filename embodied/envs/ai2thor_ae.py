@@ -57,7 +57,7 @@ class AI2ThorEnv(embodied.Env):
         self.grid_size = 0.125 # how fine do we want the 2D grid to be.
         self.reward_close_enough = 0.125 # how close to the target is close enough for the purposes of reward.
         self.plan_close_enough = 0.25  # how close to the target is close enough for the purposes of path planning.
-        self.max_steps_per_episode = 15000
+        self.max_steps_per_episode = 5000
         self.nu = NavigationUtils(step=self.grid_size)
         self.step_time = 0.0
         # If we get into a bad spot from which for whatever reason we can't plan a path out, then we'll set this to
@@ -314,7 +314,7 @@ class AI2ThorEnv(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            print("Placement: ", place_with_rtn)
+            #print("Placement: ", place_with_rtn)
             self.explored_placements_in_current_habitat.append(place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
@@ -541,7 +541,7 @@ class AI2ThorEnv(embodied.Env):
     def step(self, action):
         self.step_count_in_current_episode += 1
         #print("STEP T diff: ", (time.time() - self.step_time))
-        print("self.step_count_in_current_episode: ", self.step_count_in_current_episode)
+        #print("self.step_count_in_current_episode: ", self.step_count_in_current_episode)
         #self.step_time = time.time()
         # AE: If this is a terminal state or we need to end, then reset environment
         if action['reset'] or self._done:
