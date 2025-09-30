@@ -541,6 +541,7 @@ class AI2ThorEnv(embodied.Env):
     def step(self, action):
         self.step_count_in_current_episode += 1
         #print("STEP T diff: ", (time.time() - self.step_time))
+        print("self.step_count_in_current_episode: ", self.step_count_in_current_episode)
         #self.step_time = time.time()
         # AE: If this is a terminal state or we need to end, then reset environment
         if action['reset'] or self._done:
@@ -572,8 +573,8 @@ class AI2ThorEnv(embodied.Env):
             self.load_next_start_point()
             self._done = False
             self._bad_spot = False
+            print("FORCED SCENE CHANGE!!!", self.step_count_in_current_episode)
             self.step_count_in_current_episode  = 0
-            print("FORCED SCENE CHANGE!!!")
             return self._obs(0.0, is_first=True)
         else:
             self._total_reward_for_this_run += reward
