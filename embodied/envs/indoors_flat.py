@@ -187,6 +187,7 @@ class AI2ThorBase(embodied.Env):
         self._step = 0
         self._obs_space = self.obs_space
 
+        self._action_names = tuple(actions.keys())
         self._action_values = tuple(actions.values())
         message = f'Indoor Navigation action space ({len(self._action_values)}):'
         print(message, ', '.join(self._action_names))
