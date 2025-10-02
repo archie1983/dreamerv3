@@ -50,8 +50,9 @@ class Roomcentre(embodied.Wrapper):
         reward = sum([fn(obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
-        # we don't want to train on distance_left parameter
-        obs.pop("distance_left")
+        # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
+        # so perhaps it can stay for now.
+        #obs.pop("distance_left")
         return obs
 
 class Door(embodied.Wrapper):
@@ -77,8 +78,9 @@ class Door(embodied.Wrapper):
         reward = sum([fn(obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
-        # we don't want to train on distance_left parameter
-        obs.pop("distance_left")
+        # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
+        # so perhaps it can stay for now.
+        #obs.pop("distance_left")
         return obs
 
 ##
@@ -215,7 +217,7 @@ class AI2ThorBase(embodied.Env):
         #index = action.pop('action')
         #print("action: ", action, " self._action_values: ", self._action_values, " inder:", index)
         #action.update(self._action_values[index])
-        print("action: ", action)
+        #print("action: ", action)
 
         if action['reset']:
             obs = self._reset()
@@ -285,12 +287,12 @@ class AI2ThorBase(embodied.Env):
             'distance_left': obs['distance_left']
             # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
-        print("obs: ", obs)
+        #print("obs: ", obs)
         for key, value in obs.items():
             space = self._obs_space[key]
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
-            print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
+            #print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
             assert value in space, (key, value, value.dtype, value.shape, space)
         return obs
 
