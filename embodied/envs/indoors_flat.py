@@ -200,6 +200,7 @@ class AI2ThorBase(embodied.Env):
             'is_first': elements.Space(bool),
             'is_last': elements.Space(bool),
             'is_terminal': elements.Space(bool),
+            'distance_left': elements.Space(np.float32),
         }
 
     @property
@@ -211,8 +212,10 @@ class AI2ThorBase(embodied.Env):
 
     def step(self, action):
         action = action.copy()
-        index = action.pop('action')
-        action.update(self._action_values[index])
+        #index = action.pop('action')
+        #print("action: ", action, " self._action_values: ", self._action_values, " inder:", index)
+        #action.update(self._action_values[index])
+        print("action: ", action)
 
         if action['reset']:
             obs = self._reset()
@@ -282,10 +285,12 @@ class AI2ThorBase(embodied.Env):
             'distance_left': obs['distance_left']
             # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
+        print("obs: ", obs)
         for key, value in obs.items():
             space = self._obs_space[key]
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
+            print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
             assert value in space, (key, value, value.dtype, value.shape, space)
         return obs
 
