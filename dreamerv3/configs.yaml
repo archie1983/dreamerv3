@@ -36,7 +36,7 @@ defaults:
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
     ai2thorae: {size: [64, 64], repeat: 1, episodic: True, use_seed: True}
-    indoorsae: {size: [64, 64], logs: False, length: 36000, grid_size: 0.125, close_enough: 0.125}
+    indoorsae: {size: [64, 64], logs: False, length: 5000, grid_size: 0.125, close_enough: 0.125}
 
   replay:
     size: 5e6
@@ -69,7 +69,7 @@ defaults:
     remote_replay: False
     remote_envs: False
     usage: {psutil: True, nvsmi: True, gputil: False, malloc: False, gc: False}
-    debug: True
+    debug: False
 
   jax:
     platform: cuda
