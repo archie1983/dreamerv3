@@ -154,7 +154,7 @@ class AI2ThorBase(embodied.Env):
         self._bad_spot_cnt = 0
         self._total_reward_for_this_run = 0
         self.step_count_in_current_episode = 0
-        self.distance_left = 0.0
+        self.distance_left = np.float32(0.0)
 
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
@@ -278,7 +278,7 @@ class AI2ThorBase(embodied.Env):
     def _obs(self, obs):
         obs = {
             'image': obs['pov'],
-            'reward': np.float32(0.0),
+            'reward': np.float32(0.0), # reward will be calculated later
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
@@ -528,7 +528,7 @@ class AI2ThorBase(embodied.Env):
                                                                              self.reachable_positions,
                                                                              close_enough=self.plan_close_enough,
                                                                              step=self.grid_size)
-
+            self.current_path_length = np.float32(self.current_path_length)
         except ValueError as e:
             #print(f"ERROR: {e}")
             #print("Using previous current_path_length: ", self.current_path_length)
@@ -537,7 +537,7 @@ class AI2ThorBase(embodied.Env):
             self._bad_spot_cnt += 1
             raise e # pass it on because reward calculation also needs to know
 
-        return np.float32(self.current_path_length)
+        return self.current_path_length
 
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0):
