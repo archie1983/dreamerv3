@@ -244,6 +244,7 @@ class AI2ThorBase(embodied.Env):
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
         obs = self._obs(obs)
         self._step += 1
+        self.step_count_in_current_episode += 1
         assert 'pov' not in obs, list(obs.keys())
         return obs
 
@@ -272,6 +273,7 @@ class AI2ThorBase(embodied.Env):
             #obs = self._env.step({'reset': True})
 
         self.step_count_in_current_episode = 0
+        self._step = 0
         self._done = False
         self._bad_spot = False
         obs = self.current_ai2thor_observation()
