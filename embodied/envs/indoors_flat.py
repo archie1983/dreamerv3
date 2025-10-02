@@ -220,6 +220,7 @@ class AI2ThorBase(embodied.Env):
         #print("action: ", action)
 
         if action['reset']:
+            print('R', end='', sep='')
             obs = self._reset()
         else:
             raw_action = index_to_action(int(action['action']))
@@ -230,12 +231,13 @@ class AI2ThorBase(embodied.Env):
             # on global variables.
             try:
                 self.distance_left = self.get_current_path_length()
+                self._done = self.have_we_arrived(self.reward_close_enough)
             except ValueError as e:
                 self.distance_left = np.float32(0.0)
                 self._bad_spot = True
 
             if self._bad_spot:
-                print("FORCED SCENE CHANGE!!!", self.step_count_in_current_episode)
+                #print("FORCED SCENE CHANGE!!!", self.step_count_in_current_episode)
                 obs = self._reset()
             else:
                 obs = self.current_ai2thor_observation()
@@ -262,6 +264,8 @@ class AI2ThorBase(embodied.Env):
             is_last = self._done,
             is_terminal = self._done,
             distance_left = self.distance_left)
+        if self._done:
+            print('D', sep='', end='')
 
         self.isFirst = False # this will have to be set to True when we reset the env
         return obs
