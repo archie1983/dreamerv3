@@ -59,6 +59,7 @@ class Door(embodied.Wrapper):
 
     def __init__(self, *args, **kwargs):
         actions = action_mapping
+        print("*args: ", *args, " **kwargs: ", **kwargs)
 
         # Actions
         actions = actions.copy()
@@ -66,7 +67,8 @@ class Door(embodied.Wrapper):
             actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self.rewards = [
-            DistanceReductionReward(),
+            DistanceReductionReward(scale=1.0),
+            TargetAchievedReward(epsilon=0.125)
         ]
         length = kwargs.pop('length', 36000)
         env = DoorFinder(actions, *args, **kwargs)
@@ -88,17 +90,68 @@ class Door(embodied.Wrapper):
 # middle of the room and only then look for the doors. Or even find all doors in order.
 ##
 class DistanceReductionReward:
-    def __init__(self, scale=0.01):
+    def __init__(self, scale=1.0):
         self.scale = scale
-        self.previous = None
+        self.prev_distance = None
+        self.best_distance_so_far = None
 
-    def __call__(self, obs, inventory=None):
+    def __call__(self, obs):
+        reward = 0.0
         distance_left = obs['distance_left']
+
         if obs['is_first']:
-            self.previous = distance_left
-            return 0
-        reward = self.scale * (self.previous - distance_left)
-        self.previous = distance_left
+            self.best_distance_so_far = distance_left
+        else:
+            if self.best_distance_so_far > distance_left:
+                '''
+                if we improved best distance, then reward is the improvement factor
+                '''
+                reward = self.scale * (self.best_distance_so_far - distance_left)
+                self.best_distance_so_far = distance_left
+            elif self.best_path_length == distance_left:
+                '''
+                if no improvement, then small penalty
+                '''
+                reward = -0.05
+            elif self.best_distance_so_far < distance_left and self.prev_distance < distance_left:
+                '''
+                if we have moved away from the target, then penalty by the reduction
+                '''
+                reward = self.scale * (self.prev_distance - distance_left)
+            elif self.best_distance_so_far < distance_left and self.prev_distance > distance_left:
+                '''
+                if we have improved our position from last time, but not yet the best path, then small reward
+                '''
+                reward = 0.05
+            else:
+                '''
+                shouldn't happen. If it does, then the above code has error.
+                '''
+                print("CHECK DistanceReductionReward CODE!!!")
+                exit()
+
+        self.prev_distance = distance_left
+
+        return np.float32(reward)
+
+##
+# Issue a reward for achieving the target - once per scene
+##
+class TargetAchievedReward:
+    def __init__(self, epsilon = 0.0):
+        '''
+        :param epsilon: How close is close enough to issue the reward
+        '''
+        self.reward_issued = False
+        self.epsilon = epsilon
+
+    def __call__(self, obs, inventory):
+        reward = 0
+        if obs['is_first']:
+            self.reward_issued = False
+        elif (not self.reward_issued and obs['distance_left'] <= self.epsilon):
+            reward = 20
+            self.reward_issued = True
         return np.float32(reward)
 
 class CollectReward:
