@@ -154,7 +154,7 @@ class AI2ThorBase(embodied.Env):
         self._bad_spot_cnt = 0
         self._total_reward_for_this_run = 0
         self.step_count_in_current_episode = 0
-        self.distance_left = 0
+        self.distance_left = 0.0
 
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
@@ -229,7 +229,7 @@ class AI2ThorBase(embodied.Env):
             try:
                 self.distance_left = self.get_current_path_length()
             except ValueError as e:
-                self.distance_left = 0
+                self.distance_left = 0.0
                 self._bad_spot = True
 
             if self._bad_spot:
