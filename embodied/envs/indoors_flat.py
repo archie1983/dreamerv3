@@ -229,7 +229,7 @@ class AI2ThorBase(embodied.Env):
             try:
                 self.distance_left = self.get_current_path_length()
             except ValueError as e:
-                self.distance_left = 0.0
+                self.distance_left = np.float32(0.0)
                 self._bad_spot = True
 
             if self._bad_spot:
@@ -537,7 +537,7 @@ class AI2ThorBase(embodied.Env):
             self._bad_spot_cnt += 1
             raise e # pass it on because reward calculation also needs to know
 
-        return self.current_path_length
+        return np.float32(self.current_path_length)
 
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0):
