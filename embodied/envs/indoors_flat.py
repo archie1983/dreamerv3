@@ -110,11 +110,12 @@ class DistanceReductionReward:
                 '''
                 reward = self.scale * (self.best_distance_so_far - distance_left)
                 self.best_distance_so_far = distance_left
+                print("BIG REW: ", reward)
             elif self.best_distance_so_far == distance_left:
                 '''
-                if no improvement, then small penalty
+                if no improvement, then bigger penalty. No movement needs to be discouraged
                 '''
-                reward = -0.05
+                reward = -0.3
             elif self.best_distance_so_far < distance_left and self.prev_distance < distance_left:
                 '''
                 if we have moved away from the target, then penalty by the reduction
@@ -127,9 +128,9 @@ class DistanceReductionReward:
                 reward = 0.05
             elif self.best_distance_so_far < distance_left and self.prev_distance == distance_left:
                 '''
-                if no improvement since last time, then small penalty
+                if no improvement since last time, then penalty to discourage not moving
                 '''
-                reward = -0.05
+                reward = -0.3
             else:
                 '''
                 shouldn't happen. If it does, then the above code has error.
