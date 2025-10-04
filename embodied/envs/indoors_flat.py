@@ -59,7 +59,8 @@ class Door(embodied.Wrapper):
 
     def __init__(self, *args, **kwargs):
         actions = action_mapping
-        print("*args: ", *args, " **kwargs: ", **kwargs)
+        #print("*args: ", args, " **kwargs: ", kwargs)
+        reward_close_enough = kwargs["reward_close_enough"]
 
         # Actions
         actions = actions.copy()
@@ -68,9 +69,10 @@ class Door(embodied.Wrapper):
 
         self.rewards = [
             DistanceReductionReward(scale=1.0),
-            TargetAchievedReward(epsilon=0.125)
+            TargetAchievedReward(epsilon=reward_close_enough)
         ]
         length = kwargs.pop('length', 36000)
+        #print("AE: len", length)
         env = DoorFinder(actions, *args, **kwargs)
         env = embodied.wrappers.TimeLimit(env, length)
         super().__init__(env)
@@ -95,7 +97,7 @@ class DistanceReductionReward:
         self.prev_distance = None
         self.best_distance_so_far = None
 
-    def __call__(self, obs):
+    def __call__(self, obs, inventory=None):
         reward = 0.0
         distance_left = obs['distance_left']
 
@@ -108,7 +110,7 @@ class DistanceReductionReward:
                 '''
                 reward = self.scale * (self.best_distance_so_far - distance_left)
                 self.best_distance_so_far = distance_left
-            elif self.best_path_length == distance_left:
+            elif self.best_distance_so_far == distance_left:
                 '''
                 if no improvement, then small penalty
                 '''
@@ -123,6 +125,11 @@ class DistanceReductionReward:
                 if we have improved our position from last time, but not yet the best path, then small reward
                 '''
                 reward = 0.05
+            elif self.best_distance_so_far < distance_left and self.prev_distance == distance_left:
+                '''
+                if no improvement since last time, then small penalty
+                '''
+                reward = -0.05
             else:
                 '''
                 shouldn't happen. If it does, then the above code has error.
@@ -145,7 +152,7 @@ class TargetAchievedReward:
         self.reward_issued = False
         self.epsilon = epsilon
 
-    def __call__(self, obs, inventory):
+    def __call__(self, obs, inventory=None):
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
@@ -186,6 +193,9 @@ class AI2ThorBase(embodied.Env):
                  size=(64, 64),
                  logs=False,
                  hab_space=(100, 600),
+                 grid_size=0.125,
+                 reward_close_enough=0.125,
+                 plan_close_enough=0.25
                  ):
         if logs:
             logging.basicConfig(level=logging.DEBUG)
@@ -197,12 +207,10 @@ class AI2ThorBase(embodied.Env):
         self.rooms_in_habitat = None
         self.current_path_length = 1000
         self.reachable_positions = None
-        self.grid_size = 0.125 # how fine do we want the 2D grid to be.
-        self.reward_close_enough = 0.125 # how close to the target is close enough for the purposes of reward.
-        self.plan_close_enough = 0.25  # how close to the target is close enough for the purposes of path planning.
-        self.max_steps_per_episode = 5000
+        self.grid_size = grid_size # how fine do we want the 2D grid to be.
+        self.reward_close_enough = reward_close_enough # how close to the target is close enough for the purposes of reward. If we're this close or closer in simulation to the target, then consider it done
+        self.plan_close_enough = plan_close_enough # how close to the target is close enough for the purposes of path planning. We may end up planning path to a point anywhere near the actual target by this much
         self.nu = NavigationUtils(step=self.grid_size)
-        self.step_time = 0.0
         # If we get into a bad spot from which for whatever reason we can't plan a path out, then we'll set this to
         # True and based on it will teleport to a new place when we see this set.
         self._bad_spot = False

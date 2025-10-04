@@ -272,8 +272,7 @@ def make_env(config, index, **overrides):
   # AE: Specially for our env, we want to pass to it what script this is: eval, train or something else
   if (suite == "ai2thorae"):
       kwargs["mode"] = config.script
-  if (suite == "indoorsae"):
-      print("MAIN.PY kwargs: ", kwargs)
+
   # Now call that class, instantiate it (e.g., DMLab class from embodied.envs.dmlab).
   env = ctor(task, **kwargs)
   # Now use that instance of the environment class- wrap_env it and then return whatever it returns
