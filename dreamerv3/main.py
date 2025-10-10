@@ -253,6 +253,7 @@ def make_env(config, index, **overrides):
           f'MemoryMaze-{task}-v0', **kw),
       'ai2thorae': 'embodied.envs.ai2thor_ae:AI2ThorEnv',
       'indoors': 'embodied.envs.indoors:Indoors',
+      'indoorseval': 'embodied.envs.indoorseval:IndoorsEval',
   }[suite]
   if isinstance(ctor, str):
     # Split the selected env string into components, e.g. it could be 'embodied.envs.dmlab:DMLab'

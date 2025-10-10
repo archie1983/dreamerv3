@@ -4,6 +4,7 @@ import cloudpickle
 import elements
 import numpy as np
 import portal
+import traceback
 
 
 class Driver:
@@ -16,6 +17,7 @@ class Driver:
     if parallel:
       import multiprocessing as mp
       context = mp.get_context()
+      print("AE pipes count: ", self.length)
       self.pipes, pipes = zip(*[context.Pipe() for _ in range(self.length)])
       self.stop = context.Event()
       fns = [cloudpickle.dumps(fn) for fn in make_env_fns]
@@ -48,6 +50,8 @@ class Driver:
     #print("AE, driver.py: self.carry: ", self.carry)
 
   def close(self):
+    print("AE: closing pipes")
+    #traceback.print_stack()
     if self.parallel:
       [proc.kill() for proc in self.procs]
     else:
@@ -130,6 +134,18 @@ class Driver:
 
   @staticmethod
   def _env_server(stop, envid, pipe, ctor):
+    '''
+    In the original code we were swallowing exceptions and being quiet as a member of resistance,
+    but if we do that, then it's of course hard to debug when it ends abruptly. So, e.g. if you
+    set run.debug = False in the configs.yaml file, then it will bomb out in evaluation mode with
+    a cryptic message that has little to do with the real error. Therefore we should squeak here
+    about what errors happened.
+    :param stop:
+    :param envid:
+    :param pipe:
+    :param ctor:
+    :return:
+    '''
     try:
       ctor = cloudpickle.loads(ctor)
       env = ctor()
@@ -140,6 +156,7 @@ class Driver:
         try:
           msg, *args = pipe.recv()
         except EOFError:
+          print("AE: driver.py, EOFError")
           return
         if msg == 'step':
           assert len(args) == 1
@@ -157,9 +174,11 @@ class Driver:
     except ConnectionResetError:
       print('Connection to driver lost')
     except Exception as e:
+      print("AE: driver.py, some other error", e)
       pipe.send(('error', e))
       raise
     finally:
+      print("AE: driver.py, env server terminating")
       try:
         env.close()
       except Exception:

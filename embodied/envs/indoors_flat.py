@@ -1,7 +1,4 @@
-import logging
-import threading
-
-import elements
+import logging, threading, elements, random, embodied, traceback
 import numpy as np
 from ai2_thor_model_training.training_data_extraction import RobotNavigationControl
 from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
@@ -18,10 +15,6 @@ from thortils.utils import roundany, getch
 from thortils.utils.math import sep_spatial_sample
 
 from shapely.geometry import Point
-
-import random
-
-import embodied
 
 np.float = float
 np.int = int
@@ -224,6 +217,8 @@ class AI2ThorBase(embodied.Env):
         self.step_count_in_current_episode = 0
         self.distance_left = np.float32(0.0)
 
+        print("AE hab_space:", hab_space)
+        #traceback.print_stack()
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
 

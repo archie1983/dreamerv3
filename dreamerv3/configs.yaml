@@ -38,6 +38,7 @@ defaults:
     ai2thorae: {size: [64, 64], repeat: 1, episodic: True, use_seed: True}
     indoorsae: {size: [64, 64], logs: False, length: 5000, grid_size: 0.125, close_enough: 0.125}
     indoors: {size: [64, 64], logs: False, length: 5000, hab_space: [100, 600], grid_size: 0.125, reward_close_enough: 0.125, plan_close_enough: 0.25}
+    indoorseval: {size: [64, 64], logs: False, length: 500, hab_space: [700, 800], grid_size: 0.125, reward_close_enough: 0.125, plan_close_enough: 0.25}
 
   replay:
     size: 5e6
@@ -70,7 +71,7 @@ defaults:
     remote_replay: False
     remote_envs: False
     usage: {psutil: True, nvsmi: True, gputil: False, malloc: False, gc: False}
-    debug: False
+    debug: True
 
   jax:
     platform: cuda
@@ -205,9 +206,15 @@ ai2thorae:
 ai2thorae_eval:
   task: ai2thorae_10
   run: {steps: 1000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
+  script: eval_only
 
 indoorsae:
   task: indoors_door
+
+indoorsae_eval:
+  task: indoorseval_door
+  run: {steps: 50000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
+  script: eval_only
 
 multicpu:
   batch_size: 12
