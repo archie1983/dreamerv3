@@ -6,7 +6,7 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
                                               get_all_objects_of_type, is_point_inside_room_ground_truth,
-                                              create_full_grid_from_room_layout, add_buffer_to_unreachable)
+                                              create_full_grid_from_room_layout, add_buffer_to_unreachable, RoomType)
 
 import thortils as tt
 from thortils import launch_controller
@@ -80,6 +80,10 @@ class Door(embodied.Wrapper):
         #obs.pop("distance_left")
         return obs
 
+        # Introduce a marker on the image that points towards the door that we want to go to. That would allow input and
+        # training guidance to navigate to a specific door, not just a random door. Introduce room field in observation so that we can
+        # classify target achieved when we change rooms.
+
 ##
 # Using this class, we can stack objectives of the agent behaviour. E.g., to first achieve the
 # middle of the room and only then look for the doors. Or even find all doors in order.
@@ -143,18 +147,19 @@ class DistanceReductionReward:
 # Issue a reward for achieving the target - once per scene
 ##
 class TargetAchievedReward:
-    def __init__(self, epsilon = 0.0):
+    def __init__(self, epsilon = 0.0, steps_in_new_room = 3):
         '''
         :param epsilon: How close is close enough to issue the reward
         '''
         self.reward_issued = False
+        self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
     def __call__(self, obs, inventory=None):
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
-        elif (not self.reward_issued and obs['distance_left'] <= self.epsilon):
+        elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
             reward = 20
             self.reward_issued = True
         return np.float32(reward)
@@ -216,6 +221,11 @@ class AI2ThorBase(embodied.Env):
         self._total_reward_for_this_run = 0
         self.step_count_in_current_episode = 0
         self.distance_left = np.float32(0.0)
+        self.room_type = np.uint8(0) # current room type
+        self.starting_room = None # which room we end up in when we spawn
+        self.target_room = None # which room we want to end up in
+        self.current_room = None  # which room are we in now
+        self.steps_in_new_room = 0 # how many steps have we made inside the new room since we first stepped into the target room (resets if we leave target room)
 
         print("AE hab_space:", hab_space)
         #traceback.print_stack()
@@ -264,6 +274,8 @@ class AI2ThorBase(embodied.Env):
             'is_last': elements.Space(bool),
             'is_terminal': elements.Space(bool),
             'distance_left': elements.Space(np.float32),
+            'steps_after_room_change': elements.Space(np.uint8),
+            'room_type': elements.Space(np.uint8),
         }
 
     @property
@@ -291,7 +303,7 @@ class AI2ThorBase(embodied.Env):
             # to allow observation to be up to date. In time this should be moved to some function instead of relying
             # on global variables.
             try:
-                self.distance_left = self.get_current_path_length()
+                self.distance_left, self.room_type = self.get_current_path_and_pose_state()
                 self._done = self.have_we_arrived(self.reward_close_enough)
             except ValueError as e:
                 self.distance_left = np.float32(0.0)
@@ -318,13 +330,19 @@ class AI2ThorBase(embodied.Env):
         event = self.controller.last_event
         self._current_image = event.cv2img
 
+        # if we're
+        self.steps_in_new_room = self.steps_in_new_room + 1 if self.current_room == self.target_room else 0
+
         obs = dict(
             reward = 0.0,
             pov = self._current_image,
             is_first = self.isFirst,
             is_last = self._done,
             is_terminal = self._done,
-            distance_left = self.distance_left)
+            distance_left = np.float32(self.distance_left),
+            steps_after_room_change = np.uint8(self.steps_in_new_room),
+            room_type = np.uint8(self.room_type),
+        )
         if self._done:
             print('D', sep='', end='')
 
@@ -351,7 +369,9 @@ class AI2ThorBase(embodied.Env):
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
-            'distance_left': obs['distance_left']
+            'distance_left': obs['distance_left'],
+            'room_type': obs['room_type'],
+            'steps_after_room_change': obs['steps_after_room_change'],
             # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
         #print("obs: ", obs)
@@ -538,6 +558,8 @@ class AI2ThorBase(embodied.Env):
                                                                                  self.reachable_positions,
                                                                                  close_enough=self.plan_close_enough,
                                                                                  step=self.grid_size)
+                # what is the room we start in
+                self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
             except ValueError as e:
                 # If the path could not be planned, then drop it and carry on with the next one
                 #print(f"ERROR: {e}")
@@ -589,7 +611,8 @@ class AI2ThorBase(embodied.Env):
         return reachable_positions, unreachable_postions, full_grid, rooms_in_habitat
 
     # This function will calculate path length to the desired point from the current position.
-    def get_current_path_length(self):
+    # Also- what room type we're in
+    def get_current_path_and_pose_state(self):
         try:
             cur_pos = self.rnc.get_agent_pos_and_rotation()
             self.current_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
@@ -606,7 +629,13 @@ class AI2ThorBase(embodied.Env):
             self._bad_spot_cnt += 1
             raise e # pass it on because reward calculation also needs to know
 
-        return self.current_path_length
+        # if we've been successful so far, then we can now look up room type
+        cur_pos_xy = (cur_pos[0][0], "", cur_pos[0][2])
+        room_type = self.find_room_type_of_this_point(cur_pos_xy)
+        # and the actual room
+        self.current_room = room_this_point_belongs_to(self.rooms_in_habitat, cur_pos_xy)
+
+        return self.current_path_length, np.uint8(room_type)
 
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0):
@@ -629,6 +658,16 @@ class AI2ThorBase(embodied.Env):
         #     point_for_room_search = (p[0], "", p[1])
         #     # print("point_for_room_search: ", point_for_room_search)
         #     self.current_target_point = self.find_room_centre_target(point_for_room_search)
+
+    def find_room_type_of_this_point(self, point_for_room_search):
+        '''
+        We want to find out an ID for the room type that this point belongs to
+        :param point_for_room_search:
+        :return:
+        '''
+        room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+        room_type = room_of_placement[0]
+        return np.uint8(RoomType.interpret_label(room_type).value)
 
 ##
 # Room centre finding task
@@ -683,6 +722,10 @@ class DoorFinder(AI2ThorBase):
                                                                 self.reachable_positions,
                                                                 close_enough=self.plan_close_enough,
                                                                 step=self.grid_size)
+
+            # if we've been successful so far, then we can now look up room type
+            trg_pos_xy = (current_target_point.x, "", current_target_point.y)
+            self.target_room = room_this_point_belongs_to(self.rooms_in_habitat, trg_pos_xy)
             # print("AE: path plan time: ", (time.time() - t1))
         except ValueError as e:
             path_length = 0
@@ -693,7 +736,7 @@ class DoorFinder(AI2ThorBase):
             raise ValueError("No suitable doors were found")
 
         # print("AE: Path Length: ", path_length)
-        (cur_path, reachable_positions, start, dest) = self.nu.get_last_path_and_params()
+        #(cur_path, reachable_positions, start, dest) = self.nu.get_last_path_and_params()
         # print("AE: Path: ", cur_path)
         # atu.visualise_path2(cur_path, reachable_positions, unreachable_postions, rooms_in_habitat, start, dest,
         #                    show_unreachable_pos=False,
