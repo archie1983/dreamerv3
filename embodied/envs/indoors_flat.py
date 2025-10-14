@@ -587,6 +587,9 @@ class AI2ThorBase(embodied.Env):
                                                                                  step=self.grid_size)
                 # what is the room we start in
                 self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+
+                # We must ensure that we navigate from one room to another
+                if self.target_room == self.starting_room: raise ValueError("start and end points in same room")
             except ValueError as e:
                 # If the path could not be planned, then drop it and carry on with the next one
                 #print(f"ERROR: {e}")
