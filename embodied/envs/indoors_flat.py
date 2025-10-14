@@ -63,7 +63,7 @@ class Door(embodied.Wrapper):
 
         self.rewards = [
             DistanceReductionReward(scale=1.0),
-            #TargetAchievedReward(epsilon=reward_close_enough)
+            TargetAchievedReward(epsilon=reward_close_enough)
         ]
         length = kwargs.pop('length', 36000)
         #print("AE: len", length)
@@ -284,8 +284,8 @@ class AI2ThorBase(embodied.Env):
             'is_last': elements.Space(bool),
             'is_terminal': elements.Space(bool),
             'distance_left': elements.Space(np.float32),
-            #'steps_after_room_change': elements.Space(np.uint8),
-            #'room_type': elements.Space(np.uint8),
+            'steps_after_room_change': elements.Space(np.float32),
+            'room_type': elements.Space(np.float32),
         }
 
     @property
@@ -354,8 +354,8 @@ class AI2ThorBase(embodied.Env):
             is_last = np.bool(self._done),
             is_terminal = np.bool(self._done),
             distance_left = np.float32(self.distance_left),
-            #steps_after_room_change = np.uint8(self.steps_in_new_room),
-            #room_type = np.uint8(self.room_type),
+            steps_after_room_change = np.float32(self.steps_in_new_room),
+            room_type = np.float32(self.room_type),
         )
         if self._done:
             print('D', sep='', end='')
@@ -388,8 +388,8 @@ class AI2ThorBase(embodied.Env):
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
             'distance_left': obs['distance_left'],
-            #'steps_after_room_change': obs['steps_after_room_change'],
-            #'room_type': obs['room_type'],
+            'steps_after_room_change': obs['steps_after_room_change'],
+            'room_type': obs['room_type'],
             # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
         #print("obs: ", obs)
