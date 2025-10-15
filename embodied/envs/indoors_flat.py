@@ -230,10 +230,10 @@ class AI2ThorBase(embodied.Env):
         self._total_reward_for_this_run = 0
         self.step_count_in_current_episode = 0
         self.distance_left = np.float32(0.0)
-        self.room_type = np.uint8(0) # current room type
+        self.room_type = -1 # current room type
         self.starting_room = None # which room we end up in when we spawn
         self.target_room = None # which room we want to end up in
-        self.current_room = None  # which room are we in now
+        self.current_room = None # which room are we in now
         self.steps_in_new_room = 0 # how many steps have we made inside the new room since we first stepped into the target room (resets if we leave target room)
 
         print("AE hab_space:", hab_space)
@@ -375,6 +375,12 @@ class AI2ThorBase(embodied.Env):
         self._step = 0
         self._done = False
         self._bad_spot = False
+
+        self.distance_left = 0
+        self.steps_in_new_room = 0
+        self.room_type = -1
+        self.starting_room = None
+
         obs = self.current_ai2thor_observation()
         #print("R2")
         return obs
@@ -577,7 +583,7 @@ class AI2ThorBase(embodied.Env):
             # e.g., middle of the room, a door, etc.. For that we need to plan a path to there.
             try:
                 point_for_room_search = (p[0], "", p[1])
-                self.current_target_point = self.choose_target_point(place_with_rtn, point_for_room_search)
+                self.current_target_point = self.choose_target_point(place_with_rtn, point_for_room_search) # self.target_room will be set in this function
 
                 cur_pos = self.rnc.get_agent_pos_and_rotation()
                 self.initial_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
@@ -669,7 +675,7 @@ class AI2ThorBase(embodied.Env):
         # and the actual room
         self.current_room = room_this_point_belongs_to(self.rooms_in_habitat, cur_pos_xy)
         #print("G2")
-        return self.current_path_length, np.uint8(room_type)
+        return self.current_path_length, room_type
 
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0):
