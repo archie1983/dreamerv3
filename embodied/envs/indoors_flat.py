@@ -672,6 +672,9 @@ class AI2ThorBase(embodied.Env):
         # if we've been successful so far, then we can now look up room type
         cur_pos_xy = (cur_pos[0][0], "", cur_pos[0][2])
         room_type = self.find_room_type_of_this_point(cur_pos_xy)
+        if room_type == None:
+            print('i', end='', sep='')
+            raise ValueError("Bad room picked, type can't be determined.")
         # and the actual room
         self.current_room = room_this_point_belongs_to(self.rooms_in_habitat, cur_pos_xy)
         #print("G2")
@@ -707,6 +710,8 @@ class AI2ThorBase(embodied.Env):
         '''
         #print("FR1")
         room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+        if room_of_placement == None:
+            return None
         room_type = room_of_placement[0]
         room_type = np.uint8(RoomType.interpret_label(room_type).value)
         #print("FR2")
