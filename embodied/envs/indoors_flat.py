@@ -101,7 +101,8 @@ class DistanceReductionReward:
     def __call__(self, obs, inventory=None):
         #print("D1")
         reward = 0.0
-        distance_left = obs['distance_left']
+        #distance_left = obs['distance_left']
+        distance_left = obs['distanceleft']
 
         if obs['is_first']:
             self.best_distance_so_far = distance_left
@@ -166,7 +167,8 @@ class TargetAchievedReward:
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
-        elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
+        #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
+        elif not self.reward_issued and (obs['distanceleft'] <= self.epsilon or obs['stepsafterroomchange'] >= self.steps_in_new_room):
             reward = 20
             self.reward_issued = True
         #print("T2")
@@ -283,9 +285,12 @@ class AI2ThorBase(embodied.Env):
             'is_first': elements.Space(bool),
             'is_last': elements.Space(bool),
             'is_terminal': elements.Space(bool),
-            'distance_left': elements.Space(np.float32),
-            'steps_after_room_change': elements.Space(np.float32),
-            'room_type': elements.Space(np.float32),
+            #'distance_left': elements.Space(np.float32),
+            #'steps_after_room_change': elements.Space(np.float32),
+            #'room_type': elements.Space(np.float32),
+            'distanceleft': elements.Space(np.float32),
+            'stepsafterroomchange': elements.Space(np.float32),
+            'roomtype': elements.Space(np.float32),
         }
 
     @property
@@ -353,9 +358,12 @@ class AI2ThorBase(embodied.Env):
             is_first = np.bool(self.isFirst),
             is_last = np.bool(self._done),
             is_terminal = np.bool(self._done),
-            distance_left = np.float32(self.distance_left),
-            steps_after_room_change = np.float32(self.steps_in_new_room),
-            room_type = np.float32(self.room_type),
+            #distance_left = np.float32(self.distance_left),
+            #steps_after_room_change = np.float32(self.steps_in_new_room),
+            #room_type = np.float32(self.room_type),
+            distanceleft=np.float32(self.distance_left),
+            stepsafterroomchange=np.float32(self.steps_in_new_room),
+            roomtype=np.float32(self.room_type),
         )
         if self._done:
             print('D', sep='', end='')
@@ -393,9 +401,12 @@ class AI2ThorBase(embodied.Env):
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
-            'distance_left': obs['distance_left'],
-            'steps_after_room_change': obs['steps_after_room_change'],
-            'room_type': obs['room_type'],
+            #'distance_left': obs['distance_left'],
+            #'steps_after_room_change': obs['steps_after_room_change'],
+            #'room_type': obs['room_type'],
+            'distanceleft': obs['distanceleft'],
+            'stepsafterroomchange': obs['stepsafterroomchange'],
+            'roomtype': obs['roomtype'],
             # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
         #print("obs: ", obs)
