@@ -206,6 +206,7 @@ class AI2ThorBase(embodied.Env):
                  size=(64, 64),
                  logs=False,
                  hab_space=(100, 600),
+                 hab_set="train",
                  grid_size=0.125,
                  reward_close_enough=0.125,
                  plan_close_enough=0.25
@@ -242,6 +243,7 @@ class AI2ThorBase(embodied.Env):
         #traceback.print_stack()
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
+        self.hab_set = hab_set
 
         # when we select a random position and plan path to the room centre, we will assign a value to this parameter
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
@@ -472,7 +474,7 @@ class AI2ThorBase(embodied.Env):
         #print("LH1")
         # load required habitat
         #print("AE: haba: ", habitat_id)
-        self.habitat = self.atu.load_proctor_habitat(int(habitat_id))
+        self.habitat = self.atu.load_proctor_habitat(int(habitat_id), self.hab_set)
         self.explored_placements_in_current_habitat = []
 
         # Launch a controller for the loaded habitat. If we already have a controller,
