@@ -15,6 +15,7 @@ from thortils.utils import roundany, getch
 from thortils.utils.math import sep_spatial_sample
 
 from shapely.geometry import Point
+import pickle
 
 np.float = float
 np.int = int
@@ -200,6 +201,8 @@ class AI2ThorBase(embodied.Env):
 
     LOCK = threading.Lock()
 
+    hab_exploration_stats_collection = []
+
     def __init__(self,
                  actions,
                  repeat=1,
@@ -232,6 +235,7 @@ class AI2ThorBase(embodied.Env):
         self._bad_spot_cnt = 0
         self._total_reward_for_this_run = 0
         self.step_count_in_current_episode = 0
+        self.step_count_since_start = 0
         self.distance_left = np.float32(0.0)
         self.room_type = -1 # current room type
         self.starting_room = None # which room we end up in when we spawn
@@ -338,6 +342,7 @@ class AI2ThorBase(embodied.Env):
         obs = self._obs(obs)
         self._step += 1
         self.step_count_in_current_episode += 1
+        self.step_count_since_start += 1
         assert 'pov' not in obs, list(obs.keys())
         #print("S2")
         return obs
@@ -426,6 +431,21 @@ class AI2ThorBase(embodied.Env):
         #print("LRH1")
         # choose a random habitat from a space of given habitats by self.hab_max and self.hab_min
         loaded = False
+
+        # we are going to choose a completely new habitat now. Before we do that, we want to register somewhere
+        # what habitat was being explored up until now and what placements were looked at in there.
+        if len(self.explored_placements_in_current_habitat) > 0:
+            hab_exploration_stats = {
+                "local_step": self.step_count_since_start,
+                "habitat_id": self.habitat_id,
+                "explored_placements_in_current_habitat": self.explored_placements_in_current_habitat
+            }
+            print(hab_exploration_stats)
+            AI2ThorBase.hab_exploration_stats_collection.append(hab_exploration_stats)
+            with open("stat_store", "wb") as stat_store:
+                pickle.dump(AI2ThorBase.hab_exploration_stats_collection, stat_store)
+        # now that we've saved previous habitat exploration stats, we can carry on with a new habitat
+
         while not loaded:
             try:
                 sp = elements.Space(np.int32, (), self.hab_min, self.hab_max)
@@ -563,7 +583,8 @@ class AI2ThorBase(embodied.Env):
     
         kwargs: See thortils.vision.projection.open3d_pcd_from_rgbd;
         """
-        rnd = random.Random(seed)
+        #rnd = random.Random(seed)
+        rnd = random.Random()
 
         initial_agent_pose = tt.thor_agent_pose(self.controller)
         initial_horizon = tt.thor_camera_horizon(self.controller.last_event)
