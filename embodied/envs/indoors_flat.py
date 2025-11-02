@@ -33,6 +33,7 @@ class Roomcentre(embodied.Wrapper):
 
         self.rewards = [
             DistanceReductionReward(),
+            TargetAchievedRewardRoomCentre(),
         ]
         length = kwargs.pop('length', 36000)
         env = RoomCentreFinder(actions, *args, **kwargs)
@@ -64,7 +65,7 @@ class Door(embodied.Wrapper):
 
         self.rewards = [
             DistanceReductionReward(scale=1.0),
-            TargetAchievedReward(epsilon=reward_close_enough)
+            TargetAchievedRewardForDoor(epsilon=reward_close_enough)
         ]
         length = kwargs.pop('length', 36000)
         #print("AE: len", length)
@@ -154,7 +155,7 @@ class DistanceReductionReward:
 ##
 # Issue a reward for achieving the target - once per scene
 ##
-class TargetAchievedReward:
+class TargetAchievedRewardForDoor:
     def __init__(self, epsilon = 0.0, steps_in_new_room = 3):
         '''
         :param epsilon: How close is close enough to issue the reward
@@ -170,6 +171,30 @@ class TargetAchievedReward:
             self.reward_issued = False
         #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
         elif not self.reward_issued and (obs['distanceleft'] <= self.epsilon or obs['stepsafterroomchange'] >= self.steps_in_new_room):
+            reward = 20
+            self.reward_issued = True
+        #print("T2")
+        return np.float32(reward)
+
+##
+# Issue a reward for achieving the target - once per scene
+##
+class TargetAchievedRewardRoomCentre:
+    def __init__(self, epsilon = 0.0, steps_in_new_room = 3):
+        '''
+        :param epsilon: How close is close enough to issue the reward
+        '''
+        self.reward_issued = False
+        self.steps_in_new_room = steps_in_new_room
+        self.epsilon = epsilon
+
+    def __call__(self, obs, inventory=None):
+        #print("T1")
+        reward = 0
+        if obs['is_first']:
+            self.reward_issued = False
+        #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
+        elif not self.reward_issued and obs['distanceleft'] <= self.epsilon:
             reward = 20
             self.reward_issued = True
         #print("T2")
@@ -625,11 +650,13 @@ class AI2ThorBase(embodied.Env):
                                                                                  self.reachable_positions,
                                                                                  close_enough=self.plan_close_enough,
                                                                                  step=self.grid_size)
-                # what is the room we start in
-                self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
 
-                # We must ensure that we navigate from one room to another
-                if self.target_room == self.starting_room: raise ValueError("start and end points in same room")
+                if isinstance(self, DoorFinder):
+                    # what is the room we start in
+                    self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+
+                    # We must ensure that we navigate from one room to another
+                    if self.target_room == self.starting_room: raise ValueError("start and end points in same room")
             except ValueError as e:
                 # If the path could not be planned, then drop it and carry on with the next one
                 #print(f"ERROR: {e}")
