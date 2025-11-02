@@ -440,7 +440,7 @@ class AI2ThorBase(embodied.Env):
                 "habitat_id": self.habitat_id,
                 "explored_placements_in_current_habitat": self.explored_placements_in_current_habitat
             }
-            print(hab_exploration_stats)
+            #print(hab_exploration_stats)
             AI2ThorBase.hab_exploration_stats_collection.append(hab_exploration_stats)
             with open("stat_store", "wb") as stat_store:
                 pickle.dump(AI2ThorBase.hab_exploration_stats_collection, stat_store)
