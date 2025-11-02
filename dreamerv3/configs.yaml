@@ -1,6 +1,6 @@
 defaults:
 
-  logdir: ~/logdir/{timestamp}
+  logdir: /user/work/hp20024/roomcentre_10k/{timestamp}
   replica: 0
   replicas: 1
   method: name
@@ -209,7 +209,7 @@ ai2thorae_eval:
   script: eval_only
 
 indoorsae:
-  task: indoors_door
+  task: indoors_roomcentre
 
 indoorsae_eval:
   task: indoorseval_door
