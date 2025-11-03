@@ -56,6 +56,7 @@ defaults:
     log_every: 120
     report_every: 300
     save_every: 900
+    keepmodel_every: 100000
     envs: 16
     eval_envs: 4
     eval_eps: 1
