@@ -36,6 +36,7 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
   should_log = embodied.LocalClock(args.log_every)
   should_report = embodied.LocalClock(args.report_every)
   should_save = embodied.LocalClock(args.save_every)
+  should_keepmodel = embodied.LocalClock(args.keepmodel_every)
 
   @elements.timer.section('logfn')
   def logfn(tran, worker):
@@ -134,6 +135,22 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
       logger.write()
 
     if should_save(step):
-      cp.save()
+      keep_cp = elements.Checkpoint(logdir / 'ckpt')
+      keep_cp.agent = cp.agent
+      keep_cp.replay = cp.replay
+
+      keep_cp.directory = cp.directory
+      keep_cp.path = None
+      keep_cp.keep = 1
+      keep_cp.step = step
+      keep_cp.write = cp.write
+
+      keep_cp.replay = cp.replay
+
+      keep_cp.save()
+
+    # We want to store the model at the given intervals for evaluation
+    if should_keepmodel(step):
+
 
   logger.close()

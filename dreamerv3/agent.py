@@ -166,6 +166,7 @@ class Agent(embodied.jax.Agent):
 
   def train(self, carry, data):
     carry, obs, prevact, stepid = self._apply_replay_context(carry, data)
+    print("Can we trigger on this stepid = ", stepid, " ?")
     metrics, (carry, entries, outs, mets) = self.opt(
         self.loss, carry, obs, prevact, training=True, has_aux=True)
     metrics.update(mets)
