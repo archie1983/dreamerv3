@@ -50,7 +50,7 @@ class TimeLimit(Wrapper):
     self._step += 1
     obs = self.env.step(action)
     if self._duration and self._step >= self._duration:
-      print("AE: Episode Duration Exceeded -- Terminating Episode")
+      print("AE: Episode Duration Exceeded -- Terminating Episode : ", self._step, " / ", self._duration)
       obs['is_last'] = True
     self._done = obs['is_last']
     return obs

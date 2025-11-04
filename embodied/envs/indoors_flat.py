@@ -235,6 +235,7 @@ class AI2ThorBase(embodied.Env):
                  logs=False,
                  hab_space=(100, 600),
                  hab_set="train",
+                 places_per_hab=20,
                  grid_size=0.125,
                  reward_close_enough=0.125,
                  plan_close_enough=0.25
@@ -273,6 +274,7 @@ class AI2ThorBase(embodied.Env):
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
         self.hab_set = hab_set
+        self.places_per_hab = places_per_hab
 
         self.choose_habitats_randomly_or_sequentially = True
         if (hab_set == "train"):
@@ -521,7 +523,7 @@ class AI2ThorBase(embodied.Env):
         else:
             # otherwise, we want to look at what have we explored and what is available
             # if we have already explored 20 random locations in this habitat, then it's time to move on
-            if len(self.explored_placements_in_current_habitat) > 20:
+            if len(self.explored_placements_in_current_habitat) > self.places_per_hab:
                 self.load_random_habitat()
             else:
                 # otherwise try to load the next random placement (it will attempt a few times, currently 10).
