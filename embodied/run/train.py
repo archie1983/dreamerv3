@@ -125,6 +125,7 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
       logger.add(agg.result(), prefix='report')
 
     if should_log(step):
+      print("AE: Writing LOG")
       logger.add(train_agg.result())
       logger.add(epstats.result(), prefix='epstats')
       logger.add(replay.stats(), prefix='replay')
@@ -142,6 +143,7 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
       keep_cp = elements.Checkpoint(logdir / 'kept_models', keep=10, step=step)
       keep_cp.agent = cp.agent
       keep_cp.replay = cp.replay
+      keep_cp.step = cp.step
       keep_cp.save()
 
   logger.close()
