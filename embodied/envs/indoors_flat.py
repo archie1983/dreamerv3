@@ -274,6 +274,17 @@ class AI2ThorBase(embodied.Env):
         (self.hab_min, self.hab_max) = hab_space
         self.hab_set = hab_set
 
+        self.choose_habitats_randomly_or_sequentially = True
+        if (hab_set == "train"):
+            print(f"AE Training on : {type(self).__name__}")
+            self.choose_habitats_randomly_or_sequentially = True
+        elif (hab_set == "test"):
+            print(f"AE Testing on : {type(self).__name__}")
+            self.choose_habitats_randomly_or_sequentially = False
+        else:
+            print(f"AE ?Validation? on : {type(self).__name__}")
+            self.choose_habitats_randomly_or_sequentially = False
+
         # when we select a random position and plan path to the room centre, we will assign a value to this parameter
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
         # further points.
@@ -473,8 +484,19 @@ class AI2ThorBase(embodied.Env):
 
         while not loaded:
             try:
-                sp = elements.Space(np.int32, (), self.hab_min, self.hab_max)
-                self.habitat_id = sp.sample()
+                if (self.choose_habitats_randomly_or_sequentially): # if we want a random habitat (e.g. we're training)
+                    sp = elements.Space(np.int32, (), self.hab_min, self.hab_max)
+                    self.habitat_id = sp.sample()
+                else:
+                    # if we want a sequential habitat (e.g. we're evaluating or testing)
+                    if (self.habitat_id == None):
+                        self.habitat_id = self.hab_min
+                    elif (self.habitat_id < self.hab_max):
+                        self.habitat_id += 1
+                    else:
+                        # we're done, we need to terminate the evaluation process now
+                        exit()
+
                 # load_habitat will also call self.choose_random_placement_in_habitat(), which will in turn calculate
                 # current distance cost to the target
                 self.load_habitat(self.habitat_id)
@@ -608,8 +630,11 @@ class AI2ThorBase(embodied.Env):
     
         kwargs: See thortils.vision.projection.open3d_pcd_from_rgbd;
         """
-        #rnd = random.Random(seed)
-        rnd = random.Random()
+        ## If we are training (i.e., loading habitats randomly), then don't use a seed
+        if (self.choose_habitats_randomly_or_sequentially):
+            rnd = random.Random()
+        else: # if, on the other hand, we are evaluating or testing (loading habitats sequentially), then test everything the same way- use a seed
+            rnd = random.Random(seed)
 
         initial_agent_pose = tt.thor_agent_pose(self.controller)
         initial_horizon = tt.thor_camera_horizon(self.controller.last_event)
@@ -626,8 +651,10 @@ class AI2ThorBase(embodied.Env):
         placement_attempts = 0
         while not path_planned:
             placement_attempts += 1
-            els = elements.Space(np.int32, (), 0, len(placements))
-            p = list(placements)[int(els.sample())]
+            #els = elements.Space(np.int32, (), 0, len(placements))
+            #p = list(placements)[int(els.sample())]
+            el_ndx = rnd.randrange(0, len(placements))
+            p = list(placements)[el_ndx]
             # p = placements.pop()
 
             # append a rotation to the place.
