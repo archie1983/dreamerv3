@@ -277,6 +277,7 @@ def make_env(config, index, **overrides):
   # Therefore we will need to split the available habitats between the envs. This index will allow that.
   if (suite == "indoorseval"):
       kwargs["env_index"] = index
+      kwargs["logdir"] = config.logdir
 
   # Now call that class, instantiate it (e.g., DMLab class from embodied.envs.dmlab).
   env = ctor(task, **kwargs)
