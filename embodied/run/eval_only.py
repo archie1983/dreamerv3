@@ -79,7 +79,7 @@ def eval_only(make_agent, make_env, make_logger, args):
   # function as a function pointer and will be called from there.
   policy = lambda *args: agent.policy(*args, mode='eval')
   driver.reset(agent.init_policy)
-  while step < args.steps:
+  while step < args.steps and not driver.driver_retired:
     driver(policy, steps=10)
     if should_log(step):
       logger.add(agg.result())

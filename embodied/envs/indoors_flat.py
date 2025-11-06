@@ -230,6 +230,7 @@ class AI2ThorBase(embodied.Env):
 
     def __init__(self,
                  actions,
+                 logdir="not_set",
                  repeat=1,
                  size=(64, 64),
                  logs=False,
@@ -238,11 +239,39 @@ class AI2ThorBase(embodied.Env):
                  places_per_hab=20,
                  grid_size=0.125,
                  reward_close_enough=0.125,
-                 plan_close_enough=0.25
+                 plan_close_enough=0.25,
+                 env_index=-1
                  ):
+        '''
+
+        :param actions:
+        :param repeat:
+        :param size:
+        :param logs:
+        :param hab_space:
+        :param hab_set:
+        :param places_per_hab:
+        :param grid_size:
+        :param reward_close_enough:
+        :param plan_close_enough:
+        :param env_index: If this is anything other than -1, then we are evaluating with 3 envs and we want to split
+            the hab_space into three and only use one portion per env. This could be improved by also specifying the
+            number of envs, not just the index, but for now we will work with the assumption that the number of envs is 3.
+        '''
         #print("C1")
         if logs:
             logging.basicConfig(level=logging.DEBUG)
+
+        # if we have an env_index, then we assume that there are 3 envs and we will split hab_space between those
+        # 3 envs and assign a portion to the current env according to its index.
+        if env_index > -1:
+            (hab_min, hab_max) = hab_space
+            hab_diff = hab_max - hab_min
+            hab_step = int(hab_diff / 3)
+            hab_starts = range(hab_min, hab_max, hab_step)
+            new_hab_min = hab_starts[env_index]
+            new_hab_max = (new_hab_min + hab_step - 1) if env_index < 2 else (new_hab_min + hab_step)
+            hab_space = (new_hab_min, new_hab_max)
 
         # AE: AI2-Thor simulation stuff
         self.rnc = RobotNavigationControl()
@@ -268,8 +297,10 @@ class AI2ThorBase(embodied.Env):
         self.target_room = None # which room we want to end up in
         self.current_room = None # which room are we in now
         self.steps_in_new_room = 0 # how many steps have we made inside the new room since we first stepped into the target room (resets if we leave target room)
+        self.env_retired = False # in some cases we want to be able to signal to driver.py that this env does not need driving anymore. This will help with that.
+        self.prev_obs = None
 
-        print("AE hab_space:", hab_space)
+        print("AE hab_space:", hab_space, " logdir: ", logdir)
         #traceback.print_stack()
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
@@ -345,6 +376,11 @@ class AI2ThorBase(embodied.Env):
         }
 
     def step(self, action):
+        # If this env has been retired (in evaluation mode we have evaluated everything already), then
+        # don't actually do any stepping, but just return the previous obs
+        if self.env_retired:
+            return self.prev_obs
+
         #print("S1")
         action = action.copy()
         #index = action.pop('action')
@@ -354,6 +390,7 @@ class AI2ThorBase(embodied.Env):
 
         if action['reset']:
             print('R', end='', sep='')
+            #STORE EPISODE STATS
             obs = self._reset()
         else:
             raw_action = index_to_action(int(action['action']))
@@ -371,9 +408,15 @@ class AI2ThorBase(embodied.Env):
 
             if self._bad_spot:
                 #print("FORCED SCENE CHANGE!!!", self.step_count_in_current_episode)
-                obs = self._reset()
-            else:
-                obs = self.current_ai2thor_observation()
+                #STORE EPISODE STATS
+                print('O', end='', sep='')
+                ##
+                # This must be self._done = True instead of direct reset. We will reset in the next loop
+                ##
+                #obs = self._reset()
+                self._done = True
+            #else:
+            obs = self.current_ai2thor_observation()
 
         # Now we turn the obs that was returned by the environment into obs that we use for training,
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
@@ -383,6 +426,7 @@ class AI2ThorBase(embodied.Env):
         self.step_count_since_start += 1
         assert 'pov' not in obs, list(obs.keys())
         #print("S2")
+        self.prev_obs = obs
         return obs
 
     ##
@@ -497,7 +541,10 @@ class AI2ThorBase(embodied.Env):
                         self.habitat_id += 1
                     else:
                         # we're done, we need to terminate the evaluation process now
-                        exit()
+                        #exit()
+                        # but instead of just exiting the whole program, let's set up a flag that will tell driver.py
+                        # that this env does not need driving anymore.
+                        self.env_retired = True
 
                 # load_habitat will also call self.choose_random_placement_in_habitat(), which will in turn calculate
                 # current distance cost to the target

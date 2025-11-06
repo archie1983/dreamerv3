@@ -273,6 +273,10 @@ def make_env(config, index, **overrides):
   # AE: Specially for our env, we want to pass to it what script this is: eval, train or something else
   if (suite == "ai2thorae"):
       kwargs["mode"] = config.script
+  # AE: When we evaluate our models, we will want to run habitats sequentially, but process them in parallel.
+  # Therefore we will need to split the available habitats between the envs. This index will allow that.
+  if (suite == "indoorseval"):
+      kwargs["env_index"] = index
 
   # Now call that class, instantiate it (e.g., DMLab class from embodied.envs.dmlab).
   env = ctor(task, **kwargs)
