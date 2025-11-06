@@ -684,6 +684,8 @@ class AI2ThorBase(embodied.Env):
                     # what is the room we start in
                     self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
 
+                    if (self.starting_room == None): raise ValueError("Starting room not identifiable")
+
                     # We must ensure that we navigate from one room to another
                     if self.target_room == self.starting_room: raise ValueError("start and end points in same room")
             except ValueError as e:
@@ -767,6 +769,10 @@ class AI2ThorBase(embodied.Env):
             raise ValueError("Bad room picked, type can't be determined.")
         # and the actual room
         self.current_room = room_this_point_belongs_to(self.rooms_in_habitat, cur_pos_xy)
+        if (self.current_room == None):
+            print('y', end='', sep='')
+            raise ValueError("Current room not identifiable")
+
         #print("G2")
         return self.current_path_length, room_type
 
@@ -825,6 +831,9 @@ class RoomCentreFinder(AI2ThorBase):
         # We've just been put in a random place in a habitat. We want to move now to where we want to go,
         # e.g., middle of the room, a door, etc.. For that we need to plan a path to there.
         room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
+
+        if (room_of_placement == None): raise ValueError("Room of placement not identifiable")
+
         room_centre = room_of_placement[2]
         #print("FRC2")
         return room_centre
@@ -876,6 +885,9 @@ class DoorFinder(AI2ThorBase):
             path_length = 0
             # print("AE: No Path Found", e)
             print('£', end='', sep='')
+
+        if (self.target_room == None):
+            raise ValueError("Target room not identifiable")
 
         if current_target_point == None:
             raise ValueError("No suitable doors were found")
