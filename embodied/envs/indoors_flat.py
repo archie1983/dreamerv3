@@ -758,7 +758,7 @@ class AI2ThorBase(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            #print("Placement: ", place_with_rtn)
+            print("Placement: ", place_with_rtn, " el_ndx: ", el_ndx)
             self.explored_placements_in_current_habitat.append(place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
