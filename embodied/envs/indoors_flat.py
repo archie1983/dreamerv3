@@ -706,6 +706,12 @@ class AI2ThorBase(embodied.Env):
         print("AE: door_path_length: ", door_path_length)
         k = getch()
 
+    def create_rnd_object(self):
+        seed = 1983
+        if not hasattr(self, "rnd"):
+            self.rnd = random.Random(seed)
+        return self.rnd
+
     ##
     # Here we will select a number of random placements and then choose one to navigate from it
     # to some goal.
@@ -732,7 +738,7 @@ class AI2ThorBase(embodied.Env):
         if (self.choose_habitats_randomly_or_sequentially):
             rnd = random.Random()
         else: # if, on the other hand, we are evaluating or testing (loading habitats sequentially), then test everything the same way- use a seed
-            rnd = random.Random(seed)
+            rnd = self.create_rnd_object()
 
         initial_agent_pose = tt.thor_agent_pose(self.controller)
         initial_horizon = tt.thor_camera_horizon(self.controller.last_event)
@@ -770,6 +776,7 @@ class AI2ThorBase(embodied.Env):
                 self.current_target_point = self.choose_target_point(place_with_rtn, point_for_room_search) # self.target_room will be set in this function
 
                 cur_pos = self.rnc.get_agent_pos_and_rotation()
+                print("Placement: ", place_with_rtn, " cur_pos: ", cur_pos, " el_ndx: ", el_ndx)
                 self.initial_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
                                                                                  self.current_target_point,
                                                                                  self.reachable_positions,
