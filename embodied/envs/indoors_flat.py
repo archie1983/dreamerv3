@@ -422,7 +422,7 @@ class AI2ThorBase(embodied.Env):
                 "steps_used": self.step_count_in_current_episode,
                 "habitat_id": self.habitat_id,
                 "bad_spot": self._bad_spot,
-                "have_arrived": self.have_we_arrived(self.reward_close_enough),
+                "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
                 "path_start": self.path_start,
                 "path_dest": self.path_dest,
                 #"astar_path": self.astar_path,
