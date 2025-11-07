@@ -15,7 +15,7 @@ from thortils.utils import roundany, getch
 from thortils.utils.math import sep_spatial_sample
 
 from shapely.geometry import Point
-import pickle
+import pickle, json
 
 np.float = float
 np.int = int
@@ -300,6 +300,14 @@ class AI2ThorBase(embodied.Env):
         self.env_retired = False # in some cases we want to be able to signal to driver.py that this env does not need driving anymore. This will help with that.
         self.prev_obs = None
 
+        # When we store the statistics of each test run, we will want to capture these variables
+        self.astar_path = []
+        self.path_start = None
+        self.path_dest = None
+        self.travelled_path = []
+        self.chosen_actions = []
+        self.logdir = logdir
+
         print("AE hab_space:", hab_space, " logdir: ", logdir)
         #traceback.print_stack()
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
@@ -390,17 +398,34 @@ class AI2ThorBase(embodied.Env):
 
         if action['reset']:
             print('R', end='', sep='')
-            #STORE EPISODE STATS
+            # STORE EPISODE STATS:
+            # A* path length, A* path, travelled path length, travelled path, habitat id, actions taken.
+
+            episode_stats = {
+                "local_step": self.step_count_since_start,
+                "habitat_id": self.habitat_id,
+                "astar_path": self.astar_path,
+                "path_start": self.path_start,
+                "path_dest": self.path_dest,
+                "travelled_path": self.travelled_path,
+                "chosen_actions": self.chosen_actions,
+            }
+            #print(hab_exploration_stats)
+
+            with open(self.logdir + "/data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
+
             obs = self._reset()
         else:
             raw_action = index_to_action(int(action['action']))
             self.rnc.execute_action(raw_action, grid_size=self.grid_size, adhere_to_grid=True)
-
+            self.chosen_actions.append(int(action['action']))
             # This is slightly ugly, but we need to calculate distance_left variable right after rnc.execute_action
             # to allow observation to be up to date. In time this should be moved to some function instead of relying
             # on global variables.
             try:
-                self.distance_left, self.room_type = self.get_current_path_and_pose_state()
+                self.distance_left, self.room_type, cur_pos_xy = self.get_current_path_and_pose_state()
+                self.travelled_path.append(cur_pos_xy)
                 self._done = self.have_we_arrived(self.reward_close_enough)
             except ValueError as e:
                 self.distance_left = np.float32(0.0)
@@ -467,6 +492,12 @@ class AI2ThorBase(embodied.Env):
         with self.LOCK:
             self.load_next_start_point()
             #obs = self._env.step({'reset': True})
+
+        self.astar_path = []
+        self.path_start = None
+        self.path_dest = None
+        self.travelled_path = []
+        self.chosen_actions = []
 
         self.step_count_in_current_episode = 0
         self._step = 0
@@ -727,6 +758,10 @@ class AI2ThorBase(embodied.Env):
                                                                                  close_enough=self.plan_close_enough,
                                                                                  step=self.grid_size)
 
+                # Now let's remember the A* path- we will want it for results.
+                (self.astar_path, _, self.path_start, self.path_dest) = self.nu.get_last_path_and_params()
+                #print("AE: Path: ", cur_path)
+
                 if isinstance(self, DoorFinder):
                     # what is the room we start in
                     self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
@@ -821,7 +856,7 @@ class AI2ThorBase(embodied.Env):
             raise ValueError("Current room not identifiable")
 
         #print("G2")
-        return self.current_path_length, room_type
+        return self.current_path_length, room_type, cur_pos_xy
 
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0):
