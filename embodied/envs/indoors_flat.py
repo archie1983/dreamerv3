@@ -425,9 +425,9 @@ class AI2ThorBase(embodied.Env):
                 "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
                 "path_start": self.path_start,
                 "path_dest": self.path_dest,
-                #"astar_path": self.astar_path,
-                #"travelled_path": self.travelled_path,
-                #"chosen_actions": self.chosen_actions,
+                "astar_path": self.astar_path,
+                "travelled_path": self.travelled_path,
+                "chosen_actions": self.chosen_actions,
             }
             #print(hab_exploration_stats)
 
@@ -539,9 +539,9 @@ class AI2ThorBase(embodied.Env):
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
-            'distance_left': obs['distance_left'],
-            'steps_after_room_change': obs['steps_after_room_change'],
-            'room_type': obs['room_type'],
+            #'distance_left': obs['distance_left'],
+            #'steps_after_room_change': obs['steps_after_room_change'],
+            #'room_type': obs['room_type'],
             'distanceleft': obs['distanceleft'],
             'stepsafterroomchange': obs['stepsafterroomchange'],
             'roomtype': obs['roomtype'],
