@@ -488,16 +488,15 @@ class AI2ThorBase(embodied.Env):
 
     def _reset(self):
         #print("R1")
-        # Load new point or even a habitat, set reward to 0 and is_first = True and is_last = False and self._done = False
-        with self.LOCK:
-            self.load_next_start_point()
-            #obs = self._env.step({'reset': True})
-
         self.astar_path = []
         self.path_start = None
         self.path_dest = None
         self.travelled_path = []
         self.chosen_actions = []
+        # Load new point or even a habitat, set reward to 0 and is_first = True and is_last = False and self._done = False
+        with self.LOCK:
+            self.load_next_start_point()
+            #obs = self._env.step({'reset': True})
 
         self.step_count_in_current_episode = 0
         self._step = 0
@@ -618,9 +617,9 @@ class AI2ThorBase(embodied.Env):
     # Load the given habitat- load it, and put agent in a random place
     ##
     def load_habitat(self, habitat_id):
-        print("LH1")
+        #print("LH1")
         # load required habitat
-        print("AE: haba: ", habitat_id)
+        #print("AE: haba: ", habitat_id)
         self.habitat = self.atu.load_proctor_habitat(int(habitat_id), self.hab_set)
         self.explored_placements_in_current_habitat = []
 
@@ -693,7 +692,7 @@ class AI2ThorBase(embodied.Env):
     # to some goal.
     ##
     def choose_random_placement_in_habitat(self):
-        print("CH1")
+        #print("CH1")
         ## All we need is a set of random positions and we get them like this:
         # params for the random teleportation part
         seed = 1983
@@ -760,7 +759,7 @@ class AI2ThorBase(embodied.Env):
 
                 # Now let's remember the A* path- we will want it for results.
                 (self.astar_path, _, self.path_start, self.path_dest) = self.nu.get_last_path_and_params()
-                print("AE: Path: ", self.astar_path)
+                #print("AE: Path: ", self.astar_path)
 
                 if isinstance(self, DoorFinder):
                     # what is the room we start in
