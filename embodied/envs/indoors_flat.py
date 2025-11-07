@@ -48,7 +48,7 @@ class Roomcentre(embodied.Wrapper):
 
         if obs['is_last']:
             episode_stats = {
-                "final_reward": obs['reward'],
+                "final_reward": str(obs['reward']),
             }
             with open(self.logdir + "/episode_data.jsonl", "a") as f:
                 f.write(json.dumps(episode_stats) + "\n")
@@ -92,7 +92,7 @@ class Door(embodied.Wrapper):
 
         if obs['is_last']:
             episode_stats = {
-                "final_reward": obs['reward'],
+                "final_reward": str(obs['reward']),
             }
             with open(self.logdir + "/episode_data.jsonl", "a") as f:
                 f.write(json.dumps(episode_stats) + "\n")
