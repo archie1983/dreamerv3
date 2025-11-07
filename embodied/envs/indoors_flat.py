@@ -539,9 +539,9 @@ class AI2ThorBase(embodied.Env):
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
-            #'distance_left': obs['distance_left'],
-            #'steps_after_room_change': obs['steps_after_room_change'],
-            #'room_type': obs['room_type'],
+            'distance_left': obs['distance_left'],
+            'steps_after_room_change': obs['steps_after_room_change'],
+            'room_type': obs['room_type'],
             'distanceleft': obs['distanceleft'],
             'stepsafterroomchange': obs['stepsafterroomchange'],
             'roomtype': obs['roomtype'],
@@ -764,7 +764,7 @@ class AI2ThorBase(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            print("Placement: ", place_with_rtn, " el_ndx: ", el_ndx)
+            #print("Placement: ", place_with_rtn, " el_ndx: ", el_ndx)
             self.explored_placements_in_current_habitat.append(place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
@@ -776,7 +776,7 @@ class AI2ThorBase(embodied.Env):
                 self.current_target_point = self.choose_target_point(place_with_rtn, point_for_room_search) # self.target_room will be set in this function
 
                 cur_pos = self.rnc.get_agent_pos_and_rotation()
-                print("Placement: ", place_with_rtn, " cur_pos: ", cur_pos, " el_ndx: ", el_ndx)
+                #print("Placement: ", place_with_rtn, " cur_pos: ", cur_pos, " el_ndx: ", el_ndx)
                 self.initial_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
                                                                                  self.current_target_point,
                                                                                  self.reachable_positions,
