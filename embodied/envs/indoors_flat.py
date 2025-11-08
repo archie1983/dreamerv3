@@ -594,6 +594,7 @@ class AI2ThorBase(embodied.Env):
                         # but instead of just exiting the whole program, let's set up a flag that will tell driver.py
                         # that this env does not need driving anymore.
                         self.env_retired = True
+                        break
 
                 # load_habitat will also call self.choose_random_placement_in_habitat(), which will in turn calculate
                 # current distance cost to the target
