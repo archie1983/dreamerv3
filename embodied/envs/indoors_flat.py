@@ -38,6 +38,7 @@ class Roomcentre(embodied.Wrapper):
         ]
         length = kwargs.pop('length', 36000)
         env = RoomCentreFinder(actions, *args, **kwargs)
+        self.unwrapped_env = env
         env = embodied.wrappers.TimeLimit(env, length)
         super().__init__(env)
 
@@ -46,7 +47,7 @@ class Roomcentre(embodied.Wrapper):
         reward = sum([fn(obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
-        if obs['is_last']:
+        if obs['is_last'] and not self.unwrapped_env.env_retired:
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }
@@ -79,6 +80,7 @@ class Door(embodied.Wrapper):
         length = kwargs.pop('length', 36000)
         #print("AE: len", length)
         env = DoorFinder(actions, *args, **kwargs)
+        self.unwrapped_env = env
         env = embodied.wrappers.TimeLimit(env, length)
         super().__init__(env)
         #print("DI2")
@@ -90,7 +92,7 @@ class Door(embodied.Wrapper):
         obs['reward'] = np.float32(reward)
         #print("A2")
 
-        if obs['is_last']:
+        if obs['is_last'] and not self.unwrapped_env.env_retired:
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }

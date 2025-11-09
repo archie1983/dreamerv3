@@ -94,7 +94,7 @@ class Driver:
       ## Now let's look at all the envs and if all of them are retired, then we want to mark this driver as retired too
       self.driver_retired = True
       for i in range(self.length):
-        print("ENV ", i, " retired = ", self.envs[i].env_retired)
+        #print("ENV ", i, " retired = ", self.envs[i].env_retired)
         self.driver_retired = self.driver_retired and self.envs[i].env_retired
     #print("AE, driver.py: obs[0].keys(): ", obs[0].keys())
     # AE: As a reminder, the keys of observation for our case are: ['image', 'reward', 'is_first', 'is_last', 'is_terminal']
