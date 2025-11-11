@@ -32,6 +32,7 @@ class Driver:
     self.callbacks = []
     self.acts = None
     self.carry = None
+    self.driver_retired = False
     self.reset()
 
   def reset(self, init_policy=None):
@@ -90,6 +91,11 @@ class Driver:
       obs = [self._receive(pipe) for pipe in self.pipes]
     else:
       obs = [env.step(act) for env, act in zip(self.envs, acts)]
+      ## Now let's look at all the envs and if all of them are retired, then we want to mark this driver as retired too
+      self.driver_retired = True
+      for i in range(self.length):
+        #print("ENV ", i, " retired = ", self.envs[i].env_retired)
+        self.driver_retired = self.driver_retired and self.envs[i].env_retired
     #print("AE, driver.py: obs[0].keys(): ", obs[0].keys())
     # AE: As a reminder, the keys of observation for our case are: ['image', 'reward', 'is_first', 'is_last', 'is_terminal']
     # Now we
@@ -98,6 +104,7 @@ class Driver:
     obs = {k: v for k, v in obs.items() if not k.startswith('log/')}
     assert all(len(x) == self.length for x in obs.values()), obs
     #print("AE, driver.py: self.carry: ", self.carry) # jaxlib._jax.XlaRuntimeError: INVALID_ARGUMENT: Disallowed device-to-host transfer: shape=(8192), dtype=BF16, device=cuda:0
+    # This is where we get the new actions from the policy, the observation (obs) and previous state (self.carry)
     self.carry, acts, outs = policy(self.carry, obs, **self.kwargs)
     #print("AE, driver.py: acts3: ", acts)
     assert all(k not in acts for k in outs), (

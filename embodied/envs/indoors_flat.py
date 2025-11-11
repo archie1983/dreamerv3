@@ -15,7 +15,7 @@ from thortils.utils import roundany, getch
 from thortils.utils.math import sep_spatial_sample
 
 from shapely.geometry import Point
-import pickle
+import pickle, json
 
 np.float = float
 np.int = int
@@ -24,6 +24,7 @@ np.bool = bool
 class Roomcentre(embodied.Wrapper):
 
     def __init__(self, *args, **kwargs):
+        self.logdir = kwargs["logdir"]
         actions = action_mapping
 
         # Actions
@@ -37,6 +38,7 @@ class Roomcentre(embodied.Wrapper):
         ]
         length = kwargs.pop('length', 36000)
         env = RoomCentreFinder(actions, *args, **kwargs)
+        self.unwrapped_env = env
         env = embodied.wrappers.TimeLimit(env, length)
         super().__init__(env)
 
@@ -44,6 +46,13 @@ class Roomcentre(embodied.Wrapper):
         obs = self.env.step(action)
         reward = sum([fn(obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
+
+        if obs['is_last'] and not self.unwrapped_env.env_retired:
+            episode_stats = {
+                "final_reward": str(obs['reward']),
+            }
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
 
         # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
         # so perhaps it can stay for now.
@@ -53,6 +62,7 @@ class Roomcentre(embodied.Wrapper):
 class Door(embodied.Wrapper):
 
     def __init__(self, *args, **kwargs):
+        self.logdir = kwargs["logdir"]
         #print("DI1")
         actions = action_mapping
         #print("*args: ", args, " **kwargs: ", kwargs)
@@ -70,6 +80,7 @@ class Door(embodied.Wrapper):
         length = kwargs.pop('length', 36000)
         #print("AE: len", length)
         env = DoorFinder(actions, *args, **kwargs)
+        self.unwrapped_env = env
         env = embodied.wrappers.TimeLimit(env, length)
         super().__init__(env)
         #print("DI2")
@@ -80,6 +91,13 @@ class Door(embodied.Wrapper):
         reward = sum([fn(obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
         #print("A2")
+
+        if obs['is_last'] and not self.unwrapped_env.env_retired:
+            episode_stats = {
+                "final_reward": str(obs['reward']),
+            }
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
 
         # we may not want to train on distance_left parameter, but if we pop it, then wrappers complain,
         # so perhaps it can stay for now.
@@ -230,6 +248,7 @@ class AI2ThorBase(embodied.Env):
 
     def __init__(self,
                  actions,
+                 logdir="not_set",
                  repeat=1,
                  size=(64, 64),
                  logs=False,
@@ -238,11 +257,39 @@ class AI2ThorBase(embodied.Env):
                  places_per_hab=20,
                  grid_size=0.125,
                  reward_close_enough=0.125,
-                 plan_close_enough=0.25
+                 plan_close_enough=0.25,
+                 env_index=-1
                  ):
+        '''
+
+        :param actions:
+        :param repeat:
+        :param size:
+        :param logs:
+        :param hab_space:
+        :param hab_set:
+        :param places_per_hab:
+        :param grid_size:
+        :param reward_close_enough:
+        :param plan_close_enough:
+        :param env_index: If this is anything other than -1, then we are evaluating with 3 envs and we want to split
+            the hab_space into three and only use one portion per env. This could be improved by also specifying the
+            number of envs, not just the index, but for now we will work with the assumption that the number of envs is 3.
+        '''
         #print("C1")
         if logs:
             logging.basicConfig(level=logging.DEBUG)
+
+        # if we have an env_index, then we assume that there are 3 envs and we will split hab_space between those
+        # 3 envs and assign a portion to the current env according to its index.
+        if env_index > -1:
+            (hab_min, hab_max) = hab_space
+            hab_diff = hab_max - hab_min
+            hab_step = int(hab_diff / 3)
+            hab_starts = range(hab_min, hab_max, hab_step)
+            new_hab_min = hab_starts[env_index]
+            new_hab_max = (new_hab_min + hab_step - 1) if env_index < 2 else (new_hab_min + hab_step)
+            hab_space = (new_hab_min, new_hab_max)
 
         # AE: AI2-Thor simulation stuff
         self.rnc = RobotNavigationControl()
@@ -268,8 +315,18 @@ class AI2ThorBase(embodied.Env):
         self.target_room = None # which room we want to end up in
         self.current_room = None # which room are we in now
         self.steps_in_new_room = 0 # how many steps have we made inside the new room since we first stepped into the target room (resets if we leave target room)
+        self.env_retired = False # in some cases we want to be able to signal to driver.py that this env does not need driving anymore. This will help with that.
+        self.prev_obs = None
 
-        print("AE hab_space:", hab_space)
+        # When we store the statistics of each test run, we will want to capture these variables
+        self.astar_path = []
+        self.path_start = None
+        self.path_dest = None
+        self.travelled_path = []
+        self.chosen_actions = []
+        self.logdir = logdir
+
+        print("AE hab_space:", hab_space, " logdir: ", logdir)
         #traceback.print_stack()
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
@@ -345,6 +402,11 @@ class AI2ThorBase(embodied.Env):
         }
 
     def step(self, action):
+        # If this env has been retired (in evaluation mode we have evaluated everything already), then
+        # don't actually do any stepping, but just return the previous obs
+        if self.env_retired:
+            return self.prev_obs
+
         #print("S1")
         action = action.copy()
         #index = action.pop('action')
@@ -354,16 +416,37 @@ class AI2ThorBase(embodied.Env):
 
         if action['reset']:
             print('R', end='', sep='')
+            # STORE EPISODE STATS:
+            # A* path length, A* path, travelled path length, travelled path, habitat id, actions taken.
+
+            episode_stats = {
+                "local_step": self.step_count_since_start,
+                "steps_used": self.step_count_in_current_episode,
+                "habitat_id": self.habitat_id,
+                "bad_spot": self._bad_spot,
+                "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
+                "path_start": self.path_start,
+                "path_dest": self.path_dest,
+                "astar_path": self.astar_path,
+                "travelled_path": self.travelled_path,
+                "chosen_actions": self.chosen_actions,
+            }
+            #print(hab_exploration_stats)
+
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
+
             obs = self._reset()
         else:
             raw_action = index_to_action(int(action['action']))
             self.rnc.execute_action(raw_action, grid_size=self.grid_size, adhere_to_grid=True)
-
+            self.chosen_actions.append(int(action['action']))
             # This is slightly ugly, but we need to calculate distance_left variable right after rnc.execute_action
             # to allow observation to be up to date. In time this should be moved to some function instead of relying
             # on global variables.
             try:
-                self.distance_left, self.room_type = self.get_current_path_and_pose_state()
+                self.distance_left, self.room_type, cur_pos_xy = self.get_current_path_and_pose_state()
+                self.travelled_path.append(cur_pos_xy)
                 self._done = self.have_we_arrived(self.reward_close_enough)
             except ValueError as e:
                 self.distance_left = np.float32(0.0)
@@ -371,9 +454,15 @@ class AI2ThorBase(embodied.Env):
 
             if self._bad_spot:
                 #print("FORCED SCENE CHANGE!!!", self.step_count_in_current_episode)
-                obs = self._reset()
-            else:
-                obs = self.current_ai2thor_observation()
+                #STORE EPISODE STATS
+                print('O', end='', sep='')
+                ##
+                # This must be self._done = True instead of direct reset. We will reset in the next loop
+                ##
+                #obs = self._reset()
+                self._done = True
+            #else:
+            obs = self.current_ai2thor_observation()
 
         # Now we turn the obs that was returned by the environment into obs that we use for training,
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
@@ -383,6 +472,7 @@ class AI2ThorBase(embodied.Env):
         self.step_count_since_start += 1
         assert 'pov' not in obs, list(obs.keys())
         #print("S2")
+        self.prev_obs = obs
         return obs
 
     ##
@@ -419,6 +509,11 @@ class AI2ThorBase(embodied.Env):
 
     def _reset(self):
         #print("R1")
+        self.astar_path = []
+        self.path_start = None
+        self.path_dest = None
+        self.travelled_path = []
+        self.chosen_actions = []
         # Load new point or even a habitat, set reward to 0 and is_first = True and is_last = False and self._done = False
         with self.LOCK:
             self.load_next_start_point()
@@ -497,7 +592,11 @@ class AI2ThorBase(embodied.Env):
                         self.habitat_id += 1
                     else:
                         # we're done, we need to terminate the evaluation process now
-                        exit()
+                        #exit()
+                        # but instead of just exiting the whole program, let's set up a flag that will tell driver.py
+                        # that this env does not need driving anymore.
+                        self.env_retired = True
+                        break
 
                 # load_habitat will also call self.choose_random_placement_in_habitat(), which will in turn calculate
                 # current distance cost to the target
@@ -610,6 +709,12 @@ class AI2ThorBase(embodied.Env):
         print("AE: door_path_length: ", door_path_length)
         k = getch()
 
+    def create_rnd_object(self):
+        seed = 1983
+        if not hasattr(self, "rnd"):
+            self.rnd = random.Random(seed)
+        return self.rnd
+
     ##
     # Here we will select a number of random placements and then choose one to navigate from it
     # to some goal.
@@ -636,7 +741,7 @@ class AI2ThorBase(embodied.Env):
         if (self.choose_habitats_randomly_or_sequentially):
             rnd = random.Random()
         else: # if, on the other hand, we are evaluating or testing (loading habitats sequentially), then test everything the same way- use a seed
-            rnd = random.Random(seed)
+            rnd = self.create_rnd_object()
 
         initial_agent_pose = tt.thor_agent_pose(self.controller)
         initial_horizon = tt.thor_camera_horizon(self.controller.last_event)
@@ -662,7 +767,7 @@ class AI2ThorBase(embodied.Env):
             # append a rotation to the place.
             yaw = rnd.sample(h_angles, 1)[0]
             place_with_rtn = p + (yaw,)
-            #print("Placement: ", place_with_rtn)
+            #print("Placement: ", place_with_rtn, " el_ndx: ", el_ndx)
             self.explored_placements_in_current_habitat.append(place_with_rtn)
             ## Teleport, then start new exploration. Achieve goal. Then repeat.
             self.rnc.teleport_to(place_with_rtn)
@@ -674,11 +779,16 @@ class AI2ThorBase(embodied.Env):
                 self.current_target_point = self.choose_target_point(place_with_rtn, point_for_room_search) # self.target_room will be set in this function
 
                 cur_pos = self.rnc.get_agent_pos_and_rotation()
+                #print("Placement: ", place_with_rtn, " cur_pos: ", cur_pos, " el_ndx: ", el_ndx)
                 self.initial_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
                                                                                  self.current_target_point,
                                                                                  self.reachable_positions,
                                                                                  close_enough=self.plan_close_enough,
                                                                                  step=self.grid_size)
+
+                # Now let's remember the A* path- we will want it for results.
+                (self.astar_path, _, self.path_start, self.path_dest) = self.nu.get_last_path_and_params()
+                #print("AE: Path: ", self.astar_path)
 
                 if isinstance(self, DoorFinder):
                     # what is the room we start in
@@ -774,7 +884,7 @@ class AI2ThorBase(embodied.Env):
             raise ValueError("Current room not identifiable")
 
         #print("G2")
-        return self.current_path_length, room_type
+        return self.current_path_length, room_type, cur_pos_xy
 
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0):
