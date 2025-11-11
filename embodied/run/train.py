@@ -140,7 +140,7 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
 
     # We want to store the model at the given intervals for evaluation
     if should_keepmodel(step):
-      keep_cp = elements.Checkpoint(logdir / 'kept_models', keep=10, step=step)
+      keep_cp = elements.Checkpoint(logdir / 'kept_models', keep=20, step=step)
       keep_cp.agent = cp.agent
       keep_cp.replay = cp.replay
       keep_cp.step = cp.step
