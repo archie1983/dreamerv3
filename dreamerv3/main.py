@@ -275,8 +275,11 @@ def make_env(config, index, **overrides):
       kwargs["mode"] = config.script
   # AE: When we evaluate our models, we will want to run habitats sequentially, but process them in parallel.
   # Therefore we will need to split the available habitats between the envs. This index will allow that.
-  if (suite == "indoorseval" or suite == "indoors"):
+  if (suite == "indoorseval"):
       kwargs["env_index"] = index
+      kwargs["logdir"] = config.logdir
+  if (suite == "indoors"):
+      kwargs["env_index"] = -1 # if we're training, then we don't want to pass env index because we don't want to split a fixed dataset, but draw randomly from it
       kwargs["logdir"] = config.logdir
 
   # Now call that class, instantiate it (e.g., DMLab class from embodied.envs.dmlab).
