@@ -275,7 +275,7 @@ def make_env(config, index, **overrides):
       kwargs["mode"] = config.script
   # AE: When we evaluate our models, we will want to run habitats sequentially, but process them in parallel.
   # Therefore we will need to split the available habitats between the envs. This index will allow that.
-  if (suite == "indoorseval"):
+  if (suite == "indoorseval" or suite == "indoors"):
       kwargs["env_index"] = index
       kwargs["logdir"] = config.logdir
 
