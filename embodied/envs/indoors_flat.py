@@ -47,7 +47,7 @@ class Roomcentre(embodied.Wrapper):
         reward = sum([fn(obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
-        if obs['is_last'] and not self.unwrapped_env.env_retired:
+        if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }
@@ -92,7 +92,7 @@ class Door(embodied.Wrapper):
         obs['reward'] = np.float32(reward)
         #print("A2")
 
-        if obs['is_last'] and not self.unwrapped_env.env_retired:
+        if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }
@@ -418,23 +418,23 @@ class AI2ThorBase(embodied.Env):
             print('R', end='', sep='')
             # STORE EPISODE STATS:
             # A* path length, A* path, travelled path length, travelled path, habitat id, actions taken.
+            if self.hab_set != "train":
+                episode_stats = {
+                    "local_step": self.step_count_since_start,
+                    "steps_used": self.step_count_in_current_episode,
+                    "habitat_id": self.habitat_id,
+                    "bad_spot": self._bad_spot,
+                    "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
+                    "path_start": self.path_start,
+                    "path_dest": self.path_dest,
+                    "astar_path": self.astar_path,
+                    "travelled_path": self.travelled_path,
+                    "chosen_actions": self.chosen_actions,
+                }
+                #print(hab_exploration_stats)
 
-            episode_stats = {
-                "local_step": self.step_count_since_start,
-                "steps_used": self.step_count_in_current_episode,
-                "habitat_id": self.habitat_id,
-                "bad_spot": self._bad_spot,
-                "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
-                "path_start": self.path_start,
-                "path_dest": self.path_dest,
-                "astar_path": self.astar_path,
-                "travelled_path": self.travelled_path,
-                "chosen_actions": self.chosen_actions,
-            }
-            #print(hab_exploration_stats)
-
-            with open(self.logdir + "/episode_data.jsonl", "a") as f:
-                f.write(json.dumps(episode_stats) + "\n")
+                with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                    f.write(json.dumps(episode_stats) + "\n")
 
             obs = self._reset()
         else:
