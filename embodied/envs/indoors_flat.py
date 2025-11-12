@@ -439,7 +439,7 @@ class AI2ThorBase(embodied.Env):
             obs = self._reset()
         else:
             raw_action = index_to_action(int(action['action']))
-            self.rnc.execute_action(raw_action, grid_size=self.grid_size, adhere_to_grid=True)
+            self.rnc.execute_action(raw_action, moveMagnitude=self.grid_size, grid_size=self.grid_size, adhere_to_grid=True)
             self.chosen_actions.append(int(action['action']))
             # This is slightly ugly, but we need to calculate distance_left variable right after rnc.execute_action
             # to allow observation to be up to date. In time this should be moved to some function instead of relying
