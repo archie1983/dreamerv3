@@ -1,6 +1,6 @@
 defaults:
 
-  logdir: /user/work/hp20024/roomcentre_10k/{timestamp}
+  logdir: /user/work/hp20024/door_find_10k/{timestamp}
   replica: 0
   replicas: 1
   method: name
@@ -209,8 +209,11 @@ ai2thorae_eval:
   run: {steps: 1000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 
-indoorsae:
+indoorsrc:
   task: indoors_roomcentre
+
+indoorsdoor:
+  task: indoors_door
 
 indoorsae_eval:
   task: indoorseval_door
