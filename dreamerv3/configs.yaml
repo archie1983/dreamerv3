@@ -209,8 +209,11 @@ ai2thorae_eval:
   run: {steps: 1000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 
-indoorsae:
+indoorsrc:
   task: indoors_roomcentre
+
+indoorsdoor:
+  task: indoors_door
 
 indoorsaedoor_eval:
   task: indoorseval_door
