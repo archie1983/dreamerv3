@@ -844,3 +844,6 @@ class DoorFinder(AI2ThorBase):
     # Determines if we have little enough left to call it an achieved goal
     def have_we_arrived(self, epsilon = 0.0):
         return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)
+
+if __name__ == "__main__":
+	rc = Roomcentre()
