@@ -324,7 +324,7 @@ class AI2ThorBase(Env):
                  reward_close_enough=0.125,
                  plan_close_enough=0.25,
                  env_index=-1,
-                 server_ip='0.0.0.0',
+                 server_ip='192.168.0.32',
                  port=9999,
                  encoding='utf-8'
                  ):
@@ -490,6 +490,7 @@ class AI2ThorBase(Env):
         return self.client_socket
 
     def load_next_start_point_remotely(self):
+        breakpoint()
         if self.client_socket:
             try:
                 # 1. SEND INITIAL COMMAND
@@ -844,4 +845,4 @@ class DoorFinder(AI2ThorBase):
         return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)
 
 if __name__ == "__main__":
-	rc = Roomcentre()
+	rc = Roomcentre(logdir = "aaa")
