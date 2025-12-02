@@ -470,6 +470,7 @@ class AI2ThorBase(Env):
             init_response = json.loads(init_response_bytes.decode(self.encoding))
             if init_response.get("status") == "READY":
                 print(f"Server initialized scene: {init_response.get('scene')}")
+                self.load_next_start_point_remotely()
             #    self.reachable_positions = init_response.get("reachable_positions")
             #    self.unreachable_postions = init_response.get("unreachable_postions")
             #    self.full_grid = init_response.get("full_grid")
