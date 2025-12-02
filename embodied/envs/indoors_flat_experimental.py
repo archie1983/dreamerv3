@@ -6,8 +6,8 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
                                               get_all_objects_of_type, is_point_inside_room_ground_truth,
-                                              create_full_grid_from_room_layout, add_buffer_to_unreachable, RoomType)
-from ai2_thor_model_training.connection import recv_data, send_data
+                                              create_full_grid_from_room_layout, add_buffer_to_unreachable, RoomType, recv_data, send_data)
+#from ai2_thor_model_training.connection import recv_data, send_data
 
 import thortils as tt
 from thortils import launch_controller
