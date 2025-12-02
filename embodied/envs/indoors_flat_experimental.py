@@ -490,7 +490,7 @@ class AI2ThorBase(Env):
         return self.client_socket
 
     def load_next_start_point_remotely(self):
-        breakpoint()
+        #breakpoint()
         if self.client_socket:
             try:
                 # 1. SEND INITIAL COMMAND
