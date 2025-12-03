@@ -418,8 +418,8 @@ class AI2ThorBase(Env):
         self.isFirst = False
 
         # Here we connect remotely to an environment elsewhere, because we can't run AI2-Thor on a Jetson
-        with self.LOCK:
-            self.client_socket = self.connect_to_server()
+        #with self.LOCK:
+        self.client_socket = self.connect_to_server()
 
         self._step = 0
         self._obs_space = self.obs_space
@@ -624,7 +624,7 @@ class AI2ThorBase(Env):
 
         # Now we turn the obs that was returned by the environment into obs that we use for training,
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
-        obs = self._obs(obs)
+        if obs: obs = self._obs(obs)
         self._step += 1
         self.step_count_in_current_episode += 1
         self.step_count_since_start += 1
@@ -644,9 +644,9 @@ class AI2ThorBase(Env):
             #'distance_left': obs['distance_left'],
             #'steps_after_room_change': obs['steps_after_room_change'],
             #'room_type': obs['room_type'],
-            'distanceleft': obs['distanceleft'],
-            'stepsafterroomchange': obs['stepsafterroomchange'],
-            'roomtype': obs['roomtype'],
+            'distanceleft': np.float32(obs['distanceleft']),
+            'stepsafterroomchange': np.float32(obs['stepsafterroomchange']),
+            'roomtype': np.float32(obs['roomtype']),
             # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
         #print("obs: ", obs)
@@ -654,7 +654,7 @@ class AI2ThorBase(Env):
             space = self._obs_space[key]
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
-            #print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
+            print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
             assert value in space, (key, value, value.dtype, value.shape, space)
         #print("obs: ", obs)
         #print("_O2")
@@ -684,5 +684,6 @@ if __name__ == "__main__":
         print(act)
         a = index_to_action(int(act['action']))
         print(a)
+        act['action'] = int(act['action'])
         act['reset'] = False
         observation = rc.step(act)
