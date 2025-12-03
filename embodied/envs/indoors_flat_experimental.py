@@ -1,4 +1,4 @@
-import logging, threading, elements, random, socket, traceback
+import logging, threading, elements, random, socket, cv2, traceback
 import numpy as np
 from ai2_thor_model_training.training_data_extraction import RobotNavigationControl
 from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
@@ -102,7 +102,7 @@ class Roomcentre(Wrapper):
             TargetAchievedRewardRoomCentre(),
         ]
         length = kwargs.pop('length', 36000)
-        env = RoomCentreFinder(actions, *args, **kwargs)
+        env = AI2ThorBase(actions, *args, **kwargs, env_type="RoomCentreFinder")
         self.unwrapped_env = env
         env = TimeLimit(env, length)
         super().__init__(env)
@@ -144,7 +144,7 @@ class Door(Wrapper):
         ]
         length = kwargs.pop('length', 36000)
         #print("AE: len", length)
-        env = DoorFinder(actions, *args, **kwargs)
+        env = AI2ThorBase(actions, *args, **kwargs, env_type="DoorFinder")
         self.unwrapped_env = env
         env = TimeLimit(env, length)
         super().__init__(env)
@@ -283,28 +283,6 @@ class TargetAchievedRewardRoomCentre:
         #print("T2")
         return np.float32(reward)
 
-class CollectReward:
-
-    def __init__(self, item, once=0, repeated=0):
-        self.item = item
-        self.once = once
-        self.repeated = repeated
-        self.previous = 0
-        self.maximum = 0
-
-    def __call__(self, obs, inventory):
-        current = inventory[self.item]
-        if obs['is_first']:
-            self.previous = current
-            self.maximum = current
-            return 0
-        reward = self.repeated * max(0, current - self.previous)
-        if self.maximum == 0 and current > 0:
-            reward += self.once
-        self.previous = current
-        self.maximum = max(self.maximum, current)
-        return reward
-
 class AI2ThorBase(Env):
 
     LOCK = threading.Lock()
@@ -324,6 +302,7 @@ class AI2ThorBase(Env):
                  reward_close_enough=0.125,
                  plan_close_enough=0.25,
                  env_index=-1,
+                 env_type="RoomCentreFinder",
                  server_ip='192.168.0.32',
                  port=9999,
                  encoding='utf-8'
@@ -403,6 +382,7 @@ class AI2ThorBase(Env):
         # AE: based on whether we're training or evaluating, we will want to use different subsets of the habitat set
         (self.hab_min, self.hab_max) = hab_space
         self.hab_set = hab_set
+        self.env_type = env_type
         self.places_per_hab = places_per_hab
 
         self.choose_habitats_randomly_or_sequentially = True
@@ -459,7 +439,12 @@ class AI2ThorBase(Env):
             print("✅ Connected to server.")
 
             ## 1. SEND INITIAL COMMAND
-            initial_command = {"command": "INIT", "hab_id": "83", "hab_set": "test"}
+            initial_command = {"command": "INIT",
+                               "hab_id": "83",
+                               "hab_set": self.hab_set,
+                               "hab_min": self.hab_min,
+                               "hab_max": self.hab_max,
+                               "env_type": self.env_type}
             send_data(self.client_socket, json.dumps(initial_command).encode(self.encoding))
 
             # Await READY response
@@ -470,7 +455,8 @@ class AI2ThorBase(Env):
             init_response = json.loads(init_response_bytes.decode(self.encoding))
             if init_response.get("status") == "READY":
                 print(f"Server initialized scene: {init_response.get('scene')}")
-                self.load_next_start_point_remotely()
+                with self.LOCK:
+                    self.load_next_start_point_remotely()
             #    self.reachable_positions = init_response.get("reachable_positions")
             #    self.unreachable_postions = init_response.get("unreachable_postions")
             #    self.full_grid = init_response.get("full_grid")
@@ -507,7 +493,7 @@ class AI2ThorBase(Env):
                 if init_response.get("msg") == "HAB_AND_POS":
                     self.hab_id = init_response.get("hab_id")
                     self.cur_pos = init_response.get("cur_pos")
-                    self.current_target_point = init_response.get("current_target_point")
+                    self.current_target_point = Point(init_response.get("current_target_point"))
                     self.initial_path_length = init_response.get("initial_path_length")
                     self.astar_path = init_response.get("astar_path")
                     self.path_start = init_response.get("path_start")
@@ -517,6 +503,39 @@ class AI2ThorBase(Env):
                     self.best_path_length = init_response.get("best_path_length")
                 else:
                     raise Exception("HAB_AND_POS failed to return.")
+
+            # Example of how to access other data:
+            # print(f"Agent Position: {metadata['agent']['position']}")
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                self.close_client_socket()
+
+    def get_stored_hab_and_pos_remotely(self):
+        if self.client_socket:
+            try:
+                # 1. SEND INITIAL COMMAND
+                initial_command = {"command": "GET_SAVED_HAB_AND_POS"}
+                send_data(self.client_socket, json.dumps(initial_command).encode(self.encoding))
+
+                # Await READY response
+                init_response_bytes = recv_data(self.client_socket)
+                if not init_response_bytes:
+                    raise Exception("Server failed to send hab and pos data.")
+
+                init_response = json.loads(init_response_bytes.decode(self.encoding))
+                if init_response.get("msg") == "HAB_AND_POS":
+                    self.hab_id = init_response.get("hab_id")
+                    self.cur_pos = init_response.get("cur_pos")
+                    self.current_target_point = Point(init_response.get("current_target_point"))
+                    self.initial_path_length = init_response.get("initial_path_length")
+                    self.astar_path = init_response.get("astar_path")
+                    self.path_start = init_response.get("path_start")
+                    self.path_dest = init_response.get("path_dest")
+                    self.starting_room = init_response.get("starting_room")
+                    self.current_path_length = init_response.get("current_path_length")
+                    self.best_path_length = init_response.get("best_path_length")
+                else:
+                    raise Exception("HAB_AND_POS failed to return when explicitly requested.")
 
             # Example of how to access other data:
             # print(f"Agent Position: {metadata['agent']['position']}")
@@ -563,56 +582,45 @@ class AI2ThorBase(Env):
         #print("action: ", action, " self._action_values: ", self._action_values, " inder:", index)
         #action.update(self._action_values[index])
         #print("action: ", action)
+        try:
+            #{"action": 0, "reset": False}
+            action_cmd = {"command": "ACT", "action_bits": action}
+
+            # Send action
+            send_data(self.client_socket, json.dumps(action_cmd).encode(self.encoding))
+
+            # Receive Metadata
+            metadata_bytes = recv_data(self.client_socket)
+            if not metadata_bytes: raise Exception("Irregular client response to ACT")
+            metadata = json.loads(metadata_bytes.decode(self.encoding))
+
+            # Receive Frame (JPEG bytes)
+            frame_bytes = recv_data(self.client_socket)
+            if not frame_bytes: raise Exception("Image transfer from client failed")
+
+            # Convert JPEG bytes back to numpy array (frame)
+            np_array = np.frombuffer(frame_bytes, np.uint8)
+            frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+
+            obs = metadata['obs']
+            obs['pov'] = frame
+            episode_stats = metadata['eps']
+            # Display results on the Jetson
+            print(f"-> Action metadata: {metadata}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            self.close_client_socket()
 
         if action['reset']:
             print('R', end='', sep='')
             # STORE EPISODE STATS:
             # A* path length, A* path, travelled path length, travelled path, habitat id, actions taken.
             if self.hab_set != "train":
-                episode_stats = {
-                    "local_step": self.step_count_since_start,
-                    "steps_used": self.step_count_in_current_episode,
-                    "habitat_id": self.habitat_id,
-                    "bad_spot": self._bad_spot,
-                    "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
-                    "path_start": self.path_start,
-                    "path_dest": self.path_dest,
-                    "astar_path": self.astar_path,
-                    "travelled_path": self.travelled_path,
-                    "chosen_actions": self.chosen_actions,
-                }
-                #print(hab_exploration_stats)
-
                 with open(self.logdir + "/episode_data.jsonl", "a") as f:
                     f.write(json.dumps(episode_stats) + "\n")
 
-            obs = self._reset()
-        else:
-            raw_action = index_to_action(int(action['action']))
-            self.rnc.execute_action(raw_action, moveMagnitude=self.grid_size, grid_size=self.grid_size, adhere_to_grid=True)
-            self.chosen_actions.append(int(action['action']))
-            # This is slightly ugly, but we need to calculate distance_left variable right after rnc.execute_action
-            # to allow observation to be up to date. In time this should be moved to some function instead of relying
-            # on global variables.
-            try:
-                self.distance_left, self.room_type, cur_pos_xy = self.get_current_path_and_pose_state()
-                self.travelled_path.append(cur_pos_xy)
-                self._done = self.have_we_arrived(self.reward_close_enough)
-            except ValueError as e:
-                self.distance_left = np.float32(0.0)
-                self._bad_spot = True
-
-            if self._bad_spot:
-                #print("FORCED SCENE CHANGE!!!", self.step_count_in_current_episode)
-                #STORE EPISODE STATS
-                print('O', end='', sep='')
-                ##
-                # This must be self._done = True instead of direct reset. We will reset in the next loop
-                ##
-                #obs = self._reset()
-                self._done = True
-            #else:
-            obs = self.current_ai2thor_observation()
+            with self.LOCK:
+                self.get_stored_hab_and_pos_remotely()
 
         # Now we turn the obs that was returned by the environment into obs that we use for training,
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
@@ -623,63 +631,6 @@ class AI2ThorBase(Env):
         assert 'pov' not in obs, list(obs.keys())
         #print("S2")
         self.prev_obs = obs
-        return obs
-
-    ##
-    # Returns current observation of the state (image mostly)
-    ##
-    def current_ai2thor_observation(self):
-        #print("O1")
-        event = self.controller.last_event
-        self._current_image = event.cv2img
-
-        #print("self.current_room == self.target_room", self.current_room, self.target_room)
-        # if we're in the target room, then count how many steps we've done in the target room
-        self.steps_in_new_room = self.steps_in_new_room + 1 if self.current_room == self.target_room else 0
-
-        obs = dict(
-            reward = 0.0,
-            pov = self._current_image,
-            is_first = np.bool(self.isFirst),
-            is_last = np.bool(self._done),
-            is_terminal = np.bool(self._done),
-            #distance_left = np.float32(self.distance_left),
-            #steps_after_room_change = np.float32(self.steps_in_new_room),
-            #room_type = np.float32(self.room_type),
-            distanceleft=np.float32(self.distance_left),
-            stepsafterroomchange=np.float32(self.steps_in_new_room),
-            roomtype=np.float32(self.room_type),
-        )
-        if self._done:
-            print('D', sep='', end='')
-
-        self.isFirst = False # this will have to be set to True when we reset the env
-        #print("O2")
-        return obs
-
-    def _reset(self):
-        #print("R1")
-        self.astar_path = []
-        self.path_start = None
-        self.path_dest = None
-        self.travelled_path = []
-        self.chosen_actions = []
-        # Load new point or even a habitat, set reward to 0 and is_first = True and is_last = False and self._done = False
-        with self.LOCK:
-            self.load_next_start_point_remotely()
-
-        self.step_count_in_current_episode = 0
-        self._step = 0
-        self._done = False
-        self._bad_spot = False
-
-        self.distance_left = 0
-        self.steps_in_new_room = 0
-        self.room_type = -1
-        self.starting_room = None
-
-        obs = self.current_ai2thor_observation()
-        #print("R2")
         return obs
 
     def _obs(self, obs):
@@ -715,135 +666,23 @@ class AI2ThorBase(Env):
             self.rnd = random.Random(seed)
         return self.rnd
 
-    # Determines if we have little enough left to call it an achieved goal
-    def have_we_arrived(self, epsilon = 0.0):
-        pass
-
     def close(self):
         if (self.controller != None):
             self.controller.stop()
 
-    ##
-    # Chooses the target point that we want to navigate to, given current position.
-    # This will have to be implemented in derived classes.
-    ##
-    def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
-        pass
-        # if (self.doors_or_centre):
-        #     self.current_target_point = self.choose_door_target(place_with_rtn)
-        #     # print("self.current_target_point: ", self.current_target_point)
-        # else:
-        #     point_for_room_search = (p[0], "", p[1])
-        #     # print("point_for_room_search: ", point_for_room_search)
-        #     self.current_target_point = self.find_room_centre_target(point_for_room_search)
-
-    def find_room_type_of_this_point(self, point_for_room_search):
-        '''
-        We want to find out an ID for the room type that this point belongs to
-        :param point_for_room_search:
-        :return:
-        '''
-        #print("FR1")
-        room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
-        if room_of_placement == None:
-            return None
-        room_type = room_of_placement[0]
-        room_type = np.uint8(RoomType.interpret_label(room_type).value)
-        #print("FR2")
-        return room_type
-
-##
-# Room centre finding task
-##
-class RoomCentreFinder(AI2ThorBase):
-    def __init__(self, actions, *args, **kwargs):
-        super().__init__(actions, *args, **kwargs)
-
-    def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
-        return self.find_room_centre_target(place_with_no_rtn)
-
-    ##
-    # Finds the centre of the current room given the current position and the rooms in habitat.
-    ##
-    def find_room_centre_target(self, point_for_room_search):
-        #print("FRC1")
-        # We've just been put in a random place in a habitat. We want to move now to where we want to go,
-        # e.g., middle of the room, a door, etc.. For that we need to plan a path to there.
-        room_of_placement = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
-
-        if (room_of_placement == None): raise ValueError("Room of placement not identifiable")
-
-        room_centre = room_of_placement[2]
-        #print("FRC2")
-        return room_centre
-
-    # Determines if we have little enough left to call it an achieved goal
-    def have_we_arrived(self, epsilon = 0.0):
-        return (self.current_path_length <= epsilon)
-
-##
-# Door Finding Task
-##
-class DoorFinder(AI2ThorBase):
-    def __init__(self, actions, *args, **kwargs):
-        super().__init__(actions, *args, **kwargs)
-
-    def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
-        return self.choose_door_target(place_with_rtn)
-
-    ##
-    # Go through all the doors and find the most appropriate as a target, then add a little bit extra so that
-    # we end up going through the door.
-    # place_with_rtn: Place with rotation, e.g.: (6.62, 6.25, 180)
-    ##
-    def choose_door_target(self, place_with_rtn):
-        #print("CD1")
-        current_target_point = None
-        try:
-            current_target_point = self.nu.find_door_target(place_with_rtn,
-                                                            self.rooms_in_habitat,
-                                                            self.reachable_positions,
-                                                            self.habitat,
-                                                            self.controller, close_enough=self.plan_close_enough,
-                                                            step=self.grid_size, extend_path=True)
-
-            # t1 = time.time()
-            pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
-                    (0.0, place_with_rtn[2], 0.0))  # place_with_rtn in AI2-Thor format
-            path_length = self.nu.get_path_cost_to_target_point(pose,
-                                                                current_target_point,
-                                                                self.reachable_positions,
-                                                                close_enough=self.plan_close_enough,
-                                                                step=self.grid_size)
-
-            # if we've been successful so far, then we can now look up room type
-            trg_pos_xy = (current_target_point.x, "", current_target_point.y)
-            self.target_room = room_this_point_belongs_to(self.rooms_in_habitat, trg_pos_xy)
-            # print("AE: path plan time: ", (time.time() - t1))
-        except ValueError as e:
-            path_length = 0
-            # print("AE: No Path Found", e)
-            print('£', end='', sep='')
-
-        if (self.target_room == None):
-            raise ValueError("Target room not identifiable")
-
-        if current_target_point == None:
-            raise ValueError("No suitable doors were found")
-
-        # print("AE: Path Length: ", path_length)
-        #(cur_path, reachable_positions, start, dest) = self.nu.get_last_path_and_params()
-        # print("AE: Path: ", cur_path)
-        # atu.visualise_path2(cur_path, reachable_positions, unreachable_postions, rooms_in_habitat, start, dest,
-        #                    show_unreachable_pos=False,
-        #                    show_reachable_pos=False)
-        # atu.visualise_path2(cur_path, reachable_positions, buf_unreachable_pos, rooms_in_habitat, start, dest, show_unreachable_pos=True)
-        #print("CD2")
-        return current_target_point
-
-    # Determines if we have little enough left to call it an achieved goal
-    def have_we_arrived(self, epsilon = 0.0):
-        return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)
-
 if __name__ == "__main__":
-	rc = Roomcentre(logdir = "aaa")
+    rc = Roomcentre(logdir = "aaa")
+
+    els = elements.Space(np.int32, (), 0, 3)
+    act_space = {
+        'action': els,
+        'reset': elements.Space(bool),
+    }
+
+    for i in range(10):
+        act = {k: v.sample() for k, v in act_space.items()}
+        print(act)
+        a = index_to_action(int(act['action']))
+        print(a)
+        act['reset'] = False
+        observation = rc.step(act)
