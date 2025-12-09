@@ -115,6 +115,7 @@ class Driver:
     self.acts = {**acts, 'reset': obs['is_last'].copy()}
     #print("AE, driver.py: self.acts4: ", self.acts)
     trans = {**obs, **acts, **outs, **logs}
+    print("AE outs: ", outs, " logs: ", logs, " acts: ", acts)
     for i in range(self.length):
       trn = elements.tree.map(lambda x: x[i], trans)
       [fn(trn, i, **self.kwargs) for fn in self.callbacks]

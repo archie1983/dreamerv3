@@ -77,6 +77,7 @@ def eval_only(make_agent, make_env, make_logger, args):
   # AE: Here we simply define a function (using lambda) that will take in *args and return agent.policy called
   # on those args. We only want to create this function, not call it yet. This function will be passed to driver
   # function as a function pointer and will be called from there.
+  #print("AE args: ", args)
   policy = lambda *args: agent.policy(*args, mode='eval')
   driver.reset(agent.init_policy)
   while step < args.steps and not driver.driver_retired:
