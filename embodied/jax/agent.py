@@ -219,7 +219,7 @@ class Agent(embodied.Agent):
 
   @elements.timer.section('jaxagent_policy')
   def policy(self, carry, obs, mode='train'):
-    print("AE: embodied/jax/agent.py:policy(.): mode: ", mode)
+    #print("AE: embodied/jax/agent.py:policy(.): mode: ", mode)
     #print("AE: embodied/jax/agent.py:policy(.): self.carry: ", carry, " self.obs: ", obs)
     if not self.jaxcfg.enable_policy:
       raise Exception('Policy not available when enable_policy=False')
