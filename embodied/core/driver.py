@@ -114,6 +114,8 @@ class Driver:
       acts = {k: self._mask(v, mask) for k, v in acts.items()}
     self.acts = {**acts, 'reset': obs['is_last'].copy()}
     #print("AE, driver.py: self.acts4: ", self.acts)
+    #TODO: Inspect trans = {**obs, **acts, **outs, **logs} to understand where each field comes from.
+    # Specifically continue flag, is_first, is_last and steps left to do, etc.
     trans = {**obs, **acts, **outs, **logs}
     for i in range(self.length):
       trn = elements.tree.map(lambda x: x[i], trans)

@@ -77,6 +77,15 @@ def eval_only(make_agent, make_env, make_logger, args):
   # AE: Here we simply define a function (using lambda) that will take in *args and return agent.policy called
   # on those args. We only want to create this function, not call it yet. This function will be passed to driver
   # function as a function pointer and will be called from there.
+  #
+  # Also, there is a bit of a gotcha here: the lambda is defined using "*args" keyword, which at this point is actually the
+  # system args, that you define in dreamerv3/dreamerv3/configs.yaml, but when the lambda will be called, it will be a
+  # completely different set of args. Here is what happens next:
+  # 1) we call driver with this lambda as a parameter, this is defined in driver.py as __call__ handler
+  # 2) that call handler calls _step function in driver.py, which passes the real argument list (carry, obs)
+  # 3) that then invokes the base policy function in jax/agent.py, which returns (carry, acts, outs), before returning though,
+  #    we apply a transform through self._policy
+  # 4) finally we arrive at dreamerv3/agent.py, the policy function, where we, I believe, set up value retrieval from policy
   policy = lambda *args: agent.policy(*args, mode='eval')
   driver.reset(agent.init_policy)
   while step < args.steps and not driver.driver_retired:
