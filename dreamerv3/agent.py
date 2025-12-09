@@ -153,9 +153,12 @@ class Agent(embodied.jax.Agent):
     # AE: And this is where I believe we pass the features to the actor (which we call pol here) and get out
     # the action (or a set of actions perhaps, which we call a policy).
     policy = self.pol(self.feat2tensor(feat), bdims=1)
+    continuity = self.con(self.feat2tensor(feat), bdims=1)
     print("AE: policy: ", policy['action'].logits)
+    print("AE: continuity: ", continuity)
     act = sample(policy)
     print("AE: act: ", act)
+    cont = sample(continuity)
     out = {}
     out['finite'] = elements.tree.flatdict(jax.tree.map(
         lambda x: jnp.isfinite(x).all(range(1, x.ndim)),
@@ -164,7 +167,7 @@ class Agent(embodied.jax.Agent):
     if self.config.replay_context:
       out.update(elements.tree.flatdict(dict(
           enc=enc_entry, dyn=dyn_entry, dec=dec_entry)))
-    return carry, act, out
+    return carry, act, out, cont
 
   def train(self, carry, data):
     carry, obs, prevact, stepid = self._apply_replay_context(carry, data)
