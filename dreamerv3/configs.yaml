@@ -1,6 +1,6 @@
 defaults:
 
-  logdir: /user/work/hp20024/door_find_10k/{timestamp}
+  logdir: /home/elksnis/logdir/roomcentre_10k/{timestamp}
   replica: 0
   replicas: 1
   method: name
@@ -215,8 +215,13 @@ indoorsrc:
 indoorsdoor:
   task: indoors_door
 
-indoorsae_eval:
+indoorsaedoor_eval:
   task: indoorseval_door
+  run: {steps: 50000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
+  script: eval_only
+
+indoorsaeroomcentre_eval:
+  task: indoorseval_roomcentre
   run: {steps: 50000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 

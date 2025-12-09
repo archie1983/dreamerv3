@@ -86,6 +86,7 @@ def eval_only(make_agent, make_env, make_logger, args):
   # 3) that then invokes the base policy function in jax/agent.py, which returns (carry, acts, outs), before returning though,
   #    we apply a transform through self._policy
   # 4) finally we arrive at dreamerv3/agent.py, the policy function, where we, I believe, set up value retrieval from policy
+  #print("AE args: ", args)
   policy = lambda *args: agent.policy(*args, mode='eval')
   driver.reset(agent.init_policy)
   while step < args.steps and not driver.driver_retired:

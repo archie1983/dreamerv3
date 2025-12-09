@@ -117,6 +117,7 @@ class Driver:
     #TODO: Inspect trans = {**obs, **acts, **outs, **logs} to understand where each field comes from.
     # Specifically continue flag, is_first, is_last and steps left to do, etc.
     trans = {**obs, **acts, **outs, **logs}
+    #print("AE outs: ", outs, " logs: ", logs, " acts: ", acts)
     for i in range(self.length):
       trn = elements.tree.map(lambda x: x[i], trans)
       [fn(trn, i, **self.kwargs) for fn in self.callbacks]

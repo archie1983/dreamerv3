@@ -1,4 +1,4 @@
-import re
+import re, pdb
 
 import chex
 import elements
@@ -134,6 +134,8 @@ class Agent(embodied.jax.Agent):
     return self.init_policy(batch_size)
 
   def policy(self, carry, obs, mode='train'):
+    #print("AE carry and obs from *args: carry: ", carry, " obs: ", obs)
+    #breakpoint()
     (enc_carry, dyn_carry, dec_carry, prevact) = carry
     kw = dict(training=False, single=True)
     reset = obs['is_first']

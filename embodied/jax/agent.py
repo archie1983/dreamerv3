@@ -219,6 +219,8 @@ class Agent(embodied.Agent):
 
   @elements.timer.section('jaxagent_policy')
   def policy(self, carry, obs, mode='train'):
+    #print("AE: embodied/jax/agent.py:policy(.): mode: ", mode)
+    #print("AE: embodied/jax/agent.py:policy(.): self.carry: ", carry, " self.obs: ", obs)
     if not self.jaxcfg.enable_policy:
       raise Exception('Policy not available when enable_policy=False')
     assert not any(k.startswith('log/') for k in obs), obs.keys()
@@ -236,6 +238,7 @@ class Agent(embodied.Agent):
       carry = internal.to_global(self._stack(carry), self.policy_sharded)
 
     with self.policy_lock:
+      #print("AE: embodied/jax/agent.py: self.policy_params: ", self.policy_params)
       carry, acts, outs = self._policy(
           self.policy_params, seed, carry, obs, mode)
 
