@@ -1,6 +1,6 @@
 import contextlib
 import dataclasses
-import re
+import re, pdb
 import threading
 import time
 
@@ -50,7 +50,7 @@ class Agent(embodied.Agent):
   def __init__(self, model, obs_space, act_space, config, jaxcfg):
     assert not any(k.startswith('log/') for k in obs_space)
     assert 'reset' not in act_space
-
+    breakpoint()
     self.model = model
     self.obs_space = obs_space
     self.act_space = act_space

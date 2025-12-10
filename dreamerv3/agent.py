@@ -69,7 +69,9 @@ class Agent(embodied.jax.Agent):
     # AE: Reward predictor (a.k.a the Critic) - the MLP which we train with the smart MDP style looking ahead.
     self.rew = embodied.jax.MLPHead(scalar, **config.rewhead, name='rew')
     # AE: Need to refresh on what con is. Maybe the one that predicts the end of the episode?
+    # AE: Yes, it is, we really want to use it.
     self.con = embodied.jax.MLPHead(binary, **config.conhead, name='con')
+    self.test_inp = None # store correct shape input here
 
     d1, d2 = config.policy_dist_disc, config.policy_dist_cont
     outs = {k: d1 if v.discrete else d2 for k, v in act_space.items()}
@@ -153,12 +155,14 @@ class Agent(embodied.jax.Agent):
     # AE: And this is where I believe we pass the features to the actor (which we call pol here) and get out
     # the action (or a set of actions perhaps, which we call a policy).
     policy = self.pol(self.feat2tensor(feat), bdims=1)
-    continuity = self.con(self.feat2tensor(feat), bdims=1)
     print("AE: policy: ", policy['action'].logits)
-    print("AE: continuity: ", continuity)
+    breakpoint()
+    #continuity = self.con(self.feat2tensor(feat), bdims=1)
+    continuity = self.con(self.test_inp, bdims=2)
+    #print("AE: continuity: ", continuity)
     act = sample(policy)
     print("AE: act: ", act)
-    cont = sample(continuity)
+    #cont = sample(continuity)
     out = {}
     out['finite'] = elements.tree.flatdict(jax.tree.map(
         lambda x: jnp.isfinite(x).all(range(1, x.ndim)),
@@ -167,7 +171,7 @@ class Agent(embodied.jax.Agent):
     if self.config.replay_context:
       out.update(elements.tree.flatdict(dict(
           enc=enc_entry, dyn=dyn_entry, dec=dec_entry)))
-    return carry, act, out, cont
+    return carry, act, out
 
   def train(self, carry, data):
     carry, obs, prevact, stepid = self._apply_replay_context(carry, data)
@@ -215,6 +219,8 @@ class Agent(embodied.jax.Agent):
     con = f32(~obs['is_terminal'])
     if self.config.contdisc:
       con *= 1 - 1 / self.config.horizon
+    #self.test_inp = self.feat2tensor(repfeat)
+    #breakpoint()
     losses['con'] = self.con(self.feat2tensor(repfeat), 2).loss(con)
     for key, recon in recons.items():
       space, value = self.obs_space[key], obs[key]
@@ -241,6 +247,8 @@ class Agent(embodied.jax.Agent):
     assert all(x.shape[:2] == (B * K, H + 1) for x in jax.tree.leaves(imgfeat))
     assert all(x.shape[:2] == (B * K, H + 1) for x in jax.tree.leaves(imgact))
     inp = self.feat2tensor(imgfeat)
+    self.test_inp = inp
+    breakpoint()
     los, imgloss_out, mets = imag_loss(
         imgact,
         self.rew(inp, 2).pred(),
