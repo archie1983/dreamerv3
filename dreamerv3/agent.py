@@ -113,7 +113,8 @@ class Agent(embodied.jax.Agent):
       spaces.update(elements.tree.flatdict(dict(
           enc=self.enc.entry_space,
           dyn=self.dyn.entry_space,
-          dec=self.dec.entry_space)))
+          dec=self.dec.entry_space,
+          con=self.con.entry_space)))
     return spaces
 
   def init_policy(self, batch_size):
@@ -127,6 +128,7 @@ class Agent(embodied.jax.Agent):
         self.enc.initial(batch_size), # AE: The encoder CNN transforming our image to latent space
         self.dyn.initial(batch_size),
         self.dec.initial(batch_size),
+        self.con.initial(batch_size),
         jax.tree.map(zeros, self.act_space))
 
   def init_train(self, batch_size):
