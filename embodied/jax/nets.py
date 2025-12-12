@@ -1,4 +1,4 @@
-import functools
+import functools, pdb
 import math
 from typing import Callable
 
@@ -241,6 +241,7 @@ class Linear(nj.Module):
     ensure_dtypes(x)
     size = math.prod(self.units)
     shape = (x.shape[-1], size)
+    #breakpoint()
     x = x @ self.value('kernel', self._scaled_winit, shape).astype(x.dtype)
     if self.bias:
       x += self.value('bias', init(self.binit), size).astype(x.dtype)

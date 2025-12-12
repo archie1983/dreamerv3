@@ -50,7 +50,7 @@ class Agent(embodied.Agent):
   def __init__(self, model, obs_space, act_space, config, jaxcfg):
     assert not any(k.startswith('log/') for k in obs_space)
     assert 'reset' not in act_space
-    breakpoint()
+    #breakpoint()
     self.model = model
     self.obs_space = obs_space
     self.act_space = act_space
@@ -239,6 +239,7 @@ class Agent(embodied.Agent):
 
     with self.policy_lock:
       #print("AE: embodied/jax/agent.py: self.policy_params: ", self.policy_params)
+      #carry, acts, outs, cont = self._policy(
       carry, acts, outs = self._policy(
           self.policy_params, seed, carry, obs, mode)
 
@@ -262,11 +263,16 @@ class Agent(embodied.Agent):
       else:
         assert np.isfinite(acts[key]).all(), (acts[key], key, space)
 
+    #return carry, acts, outs, cont
     return carry, acts, outs
 
   @elements.timer.section('jaxagent_train')
   def train(self, carry, data):
     seed = data.pop('seed')
+    # AE: popping continuity prob here, because we don't need to train on it- it's already handled by the architecture.
+    # The only reason why we have it here at all, is so that we can extract it in driver.py
+    cont = data.pop('cont')
+    distanceleft = data.pop('distanceleft')
     assert sorted(data.keys()) == sorted(self.spaces.keys()), (
         sorted(data.keys()), sorted(self.spaces.keys()))
     allo = {k: v for k, v in self.params.items() if k in self.policy_keys}
@@ -319,6 +325,10 @@ class Agent(embodied.Agent):
   @elements.timer.section('jaxagent_report')
   def report(self, carry, data):
     seed = data.pop('seed')
+    # AE: popping continuity prob here, because we don't need to include it in the report- it's already handled elsewhere.
+    # The only reason why we have it here at all, is so that we can extract it in driver.py
+    cont = data.pop('cont')
+    distanceleft = data.pop('distanceleft')
     assert sorted(data.keys()) == sorted(self.spaces.keys()), (
         sorted(data.keys()), sorted(self.spaces.keys()))
     with self.train_lock:

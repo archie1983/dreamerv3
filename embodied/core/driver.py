@@ -105,6 +105,7 @@ class Driver:
     assert all(len(x) == self.length for x in obs.values()), obs
     #print("AE, driver.py: self.carry: ", self.carry) # jaxlib._jax.XlaRuntimeError: INVALID_ARGUMENT: Disallowed device-to-host transfer: shape=(8192), dtype=BF16, device=cuda:0
     # This is where we get the new actions from the policy, the observation (obs) and previous state (self.carry)
+    #self.carry, acts, outs, cont = policy(self.carry, obs, **self.kwargs)
     self.carry, acts, outs = policy(self.carry, obs, **self.kwargs)
     #print("AE, driver.py: acts3: ", acts)
     assert all(k not in acts for k in outs), (
@@ -117,7 +118,21 @@ class Driver:
     #TODO: Inspect trans = {**obs, **acts, **outs, **logs} to understand where each field comes from.
     # Specifically continue flag, is_first, is_last and steps left to do, etc.
     trans = {**obs, **acts, **outs, **logs}
-    print("AE outs: ", outs, " logs: ", logs, " acts: ", acts)
+    #print("AE outs: ", outs, " logs: ", logs, " acts: ", acts, " cont: ", cont)
+    #print("AE outs: ", outs, " logs: ", logs, " acts: ", acts)
+    #print("AE obs: ", obs)
+    #print("AE term comp: ", outs['cont'], " :: ", obs['is_last'])
+    #print("AE  term comp8: ", (outs['cont'] > 0.8) == obs['is_terminal'], " @ (", outs['cont'], " > 0.8) == ", obs['is_terminal'])
+    #print("AE  term comp3: ", (outs['cont'] < 0.3) == obs['is_terminal'], " @ (", outs['cont'], " < 0.3) == ", obs['is_terminal'])
+    #if ((outs['cont'] > 0.8) == obs['is_terminal']):
+    #if ((outs['cont'] < 0.3) == obs['is_terminal']):
+    #  print("1", outs['cont'], ' # ', outs['distanceleft'], end=' + ')
+    #else:
+    #  print("0", outs['cont'], ' # ', outs['distanceleft'], end=' +')
+    #print("AE outs: ", outs)
+    #if obs['is_terminal']:
+    #  print(outs['cont'], ' # ', outs['distanceleft'], end='')
+    print(obs['distanceleft'], ' . ', outs['distanceleft'], " ", outs['cont'], " ", obs['is_terminal'])
     for i in range(self.length):
       trn = elements.tree.map(lambda x: x[i], trans)
       [fn(trn, i, **self.kwargs) for fn in self.callbacks]

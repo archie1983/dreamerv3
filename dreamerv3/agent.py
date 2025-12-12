@@ -113,8 +113,7 @@ class Agent(embodied.jax.Agent):
       spaces.update(elements.tree.flatdict(dict(
           enc=self.enc.entry_space,
           dyn=self.dyn.entry_space,
-          dec=self.dec.entry_space,
-          con=self.con.entry_space)))
+          dec=self.dec.entry_space)))
     return spaces
 
   def init_policy(self, batch_size):
@@ -128,7 +127,6 @@ class Agent(embodied.jax.Agent):
         self.enc.initial(batch_size), # AE: The encoder CNN transforming our image to latent space
         self.dyn.initial(batch_size),
         self.dec.initial(batch_size),
-        self.con.initial(batch_size),
         jax.tree.map(zeros, self.act_space))
 
   def init_train(self, batch_size):
@@ -154,18 +152,31 @@ class Agent(embodied.jax.Agent):
     dec_entry = {}
     if dec_carry:
       dec_carry, dec_entry, recons = self.dec(dec_carry, feat, reset, **kw)
+    # AE: extracting from imagination
+    dec_carry, dec_entry, recons = self.dec(dyn_carry, feat, reset, **kw)
+
+    breakpoint()
     # AE: And this is where I believe we pass the features to the actor (which we call pol here) and get out
     # the action (or a set of actions perhaps, which we call a policy).
+    #breakpoint()
     policy = self.pol(self.feat2tensor(feat), bdims=1)
-    print("AE: policy: ", policy['action'].logits)
-    breakpoint()
-    #continuity = self.con(self.feat2tensor(feat), bdims=1)
-    continuity = self.con(self.test_inp, bdims=2)
-    #print("AE: continuity: ", continuity)
+    #print("AE: policy: ", policy)
+    #print("AE: policy[action]: ", policy['action'])
+    #print("AE: policy[action].logits: ", policy['action'].logits)
     act = sample(policy)
-    print("AE: act: ", act)
+    #print("AE: act: ", act)
     #cont = sample(continuity)
+    #cont = continuity
+    #print("AE: cont: ", cont)
+    #cont = -1
     out = {}
+    # AE: using continuity head to infer the probability for the end of the episode
+    continuity = self.con(self.feat2tensor(feat), bdims=1)
+    cont = continuity.prob(1)
+    out['cont'] = cont
+    #print("AE: continuity: ", continuity)
+    #print("AE: continuity.prob(1): ", continuity.prob(1))
+    # AE: continuity prob added.
     out['finite'] = elements.tree.flatdict(jax.tree.map(
         lambda x: jnp.isfinite(x).all(range(1, x.ndim)),
         dict(obs=obs, carry=carry, tokens=tokens, feat=feat, act=act)))
@@ -173,6 +184,10 @@ class Agent(embodied.jax.Agent):
     if self.config.replay_context:
       out.update(elements.tree.flatdict(dict(
           enc=enc_entry, dyn=dyn_entry, dec=dec_entry)))
+    print("AE out keys: ", out)
+    out['distanceleft'] = recons['distanceleft'].pred()
+    #return carry, act, out, cont
+    #breakpoint()
     return carry, act, out
 
   def train(self, carry, data):
@@ -250,7 +265,7 @@ class Agent(embodied.jax.Agent):
     assert all(x.shape[:2] == (B * K, H + 1) for x in jax.tree.leaves(imgact))
     inp = self.feat2tensor(imgfeat)
     self.test_inp = inp
-    breakpoint()
+    #breakpoint()
     los, imgloss_out, mets = imag_loss(
         imgact,
         self.rew(inp, 2).pred(),
@@ -320,7 +335,7 @@ class Agent(embodied.jax.Agent):
           metrics[f'gradnorm/{key}'] = optax.global_norm(grad)
         except KeyError:
           print(f'Skipping gradnorm summary for missing loss: {key}')
-
+    print("AE: metrics: ", metrics)
     # Open loop
     firsthalf = lambda xs: jax.tree.map(lambda x: x[:RB, :T // 2], xs)
     secondhalf = lambda xs: jax.tree.map(lambda x: x[:RB, T // 2:], xs)

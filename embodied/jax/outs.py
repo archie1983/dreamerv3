@@ -1,4 +1,4 @@
-import functools
+import functools, pdb
 
 import jax
 import jax.numpy as jnp
@@ -202,7 +202,8 @@ class Binary(Output):
 
   def sample(self, seed, shape=()):
     prob = jax.nn.sigmoid(self.logit)
-    return jax.random.bernoulli(seed, prob, -1, shape + self.logit.shape)
+    #return jax.random.bernoulli(seed, prob, -1, shape + self.logit.shape)
+    return jax.random.bernoulli(key=seed, p=prob, shape=shape + self.logit.shape, mode='high')
 
 
 class Categorical(Output):
