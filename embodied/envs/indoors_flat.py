@@ -198,7 +198,10 @@ class TargetAchievedRewardForDoor:
             how much we award based on distance left
             '''
             # double the penalty for distance left to discourage early STOP
-            reward = extra_obs['initial_distance'] - 2 * extra_obs['distanceleft']
+            if extra_obs['distanceleft'] >= extra_obs['initial_distance']:
+                reward = extra_obs['initial_distance'] - 2 * extra_obs['distanceleft']
+            else:
+                reward = extra_obs['initial_distance'] - extra_obs['distanceleft']
             # extra reward for achieving epsilon requirement
             if (extra_obs['distanceleft'] <= self.epsilon or extra_obs['stepsafterroomchange'] >= self.steps_in_new_room):
                 reward += 20
@@ -229,7 +232,10 @@ class TargetAchievedRewardRoomCentre:
             how much we award based on distance left
             '''
             # double the penalty for distance left to discourage early STOP
-            reward = extra_obs['initial_distance'] - 2 * extra_obs['distanceleft']
+            if extra_obs['distanceleft'] >= extra_obs['initial_distance']:
+                reward = extra_obs['initial_distance'] - 2 * extra_obs['distanceleft']
+            else:
+                reward = extra_obs['initial_distance'] - extra_obs['distanceleft']
             # extra reward for achieving epsilon requirement
             if extra_obs['distanceleft'] <= self.epsilon:
                 reward += 20
