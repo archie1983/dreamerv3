@@ -26,15 +26,16 @@ class Roomcentre(embodied.Wrapper):
     def __init__(self, *args, **kwargs):
         self.logdir = kwargs["logdir"]
         actions = action_mapping
+        reward_close_enough = kwargs["reward_close_enough"]
 
         # Actions
         actions = actions.copy()
-        if "STOP" in actions:
-            actions.pop("STOP")  # remove STOP action because that will be treated differently
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self.rewards = [
             DistanceReductionReward(),
-            TargetAchievedRewardRoomCentre(),
+            TargetAchievedRewardRoomCentre(epsilon=reward_close_enough),
         ]
         length = kwargs.pop('length', 36000)
         env = RoomCentreFinder(actions, *args, **kwargs)
@@ -219,7 +220,7 @@ class TargetAchievedRewardRoomCentre:
         elif not self.reward_issued and extra_obs['distanceleft'] <= self.epsilon:
             reward = 20
             self.reward_issued = True
-        #print("T2")
+            #print("WIN", self.epsilon)
         return np.float32(reward)
 
 class AI2ThorBase(embodied.Env):
@@ -416,6 +417,11 @@ class AI2ThorBase(embodied.Env):
                     f.write(json.dumps(episode_stats) + "\n")
 
             obs, extra_obs = self._reset()
+        elif index_to_action(int(action['action'])) == "STOP":
+            self.chosen_actions.append(int(action['action']))
+            self._done = True
+            print('S', end='', sep='')
+            obs, extra_obs = self.current_ai2thor_observation()
         else:
             raw_action = index_to_action(int(action['action']))
             self.rnc.execute_action(raw_action, moveMagnitude=self.grid_size, grid_size=self.grid_size, adhere_to_grid=True)
@@ -426,7 +432,7 @@ class AI2ThorBase(embodied.Env):
             try:
                 self.distance_left, self.room_type, cur_pos_xy = self.get_current_path_and_pose_state()
                 self.travelled_path.append(cur_pos_xy)
-                self._done = self.have_we_arrived(self.reward_close_enough)
+                #self._done = self.have_we_arrived(self.reward_close_enough)
             except ValueError as e:
                 self.distance_left = np.float32(0.0)
                 self._bad_spot = True
