@@ -75,8 +75,8 @@ class Door(embodied.Wrapper):
 
         # Actions
         actions = actions.copy()
-        if "STOP" in actions:
-            actions.pop("STOP")  # remove STOP action because that will be treated differently
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self.rewards = [
             DistanceReductionReward(scale=1.0),
@@ -92,7 +92,7 @@ class Door(embodied.Wrapper):
 
     def step(self, action):
         #print("A1")
-        obs, extra_obs = self.env.step(action)
+        obs, extra_obs = self.env.step(action, add_extra=True)
         reward = sum([fn(obs, extra_obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
         #print("A2")
@@ -196,7 +196,7 @@ class TargetAchievedRewardForDoor:
         elif not self.reward_issued and (extra_obs['distanceleft'] <= self.epsilon or extra_obs['stepsafterroomchange'] >= self.steps_in_new_room):
             reward = 20
             self.reward_issued = True
-        #print("T2")
+            # print("WIN", self.epsilon)
         return np.float32(reward)
 
 ##
