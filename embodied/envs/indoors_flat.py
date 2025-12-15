@@ -199,7 +199,7 @@ class TargetAchievedRewardForDoor:
             '''
             # double the penalty for distance left to discourage early STOP
             if extra_obs['distanceleft'] >= extra_obs['initial_distance']:
-                reward = 2 * (extra_obs['initial_distance'] - extra_obs['distanceleft'])
+                reward = (extra_obs['initial_distance'] - 2 * extra_obs['distanceleft'])
             else:
                 reward = 3 * (extra_obs['initial_distance'] - extra_obs['distanceleft'])
             # extra reward for achieving epsilon requirement
@@ -233,7 +233,7 @@ class TargetAchievedRewardRoomCentre:
             '''
             # double the penalty for distance left to discourage early STOP
             if extra_obs['distanceleft'] >= extra_obs['initial_distance']:
-                reward = 2 * (extra_obs['initial_distance'] - extra_obs['distanceleft'])
+                reward = (extra_obs['initial_distance'] - 2 * extra_obs['distanceleft'])
             else:
                 reward = 3 * (extra_obs['initial_distance'] - extra_obs['distanceleft'])
             # extra reward for achieving epsilon requirement
