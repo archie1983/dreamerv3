@@ -41,12 +41,30 @@ class TimeLimit(Wrapper):
       self._done = False
       if self._reset:
         action.update(reset=True)
-        return self.env.step(action)
+        #return self.env.step(action)
+        if add_extra:
+          obs, extra_obs = self.env.step(action, add_extra)
+        else:
+          obs = self.env.step(action)
+
+        if add_extra:
+          return obs, extra_obs
+        else:
+          return obs
       else:
         action.update(reset=False)
-        obs = self.env.step(action)
+        #obs = self.env.step(action)
+
+        if add_extra:
+          obs, extra_obs = self.env.step(action, add_extra)
+        else:
+          obs = self.env.step(action)
+
         obs['is_first'] = True
-        return obs
+        if add_extra:
+          return obs, extra_obs
+        else:
+          return obs
     self._step += 1
     if add_extra:
       obs, extra_obs = self.env.step(action, add_extra)
@@ -228,7 +246,7 @@ class UnifyDtypes(Wrapper):
     action = action.copy()
     for key, dtype in self._act_inner.items():
       action[key] = np.asarray(action[key], dtype)
-    obs, extra_obs = self.env.step(action)
+    obs = self.env.step(action)
     for key, dtype in self._obs_outer.items():
       obs[key] = np.asarray(obs[key], dtype)
     return obs

@@ -45,7 +45,7 @@ class Roomcentre(embodied.Wrapper):
 
     def step(self, action):
         env_res = self.env.step(action, add_extra = True)
-        print("AE: env_res: ", env_res)
+        #print("AE: env_res: ", env_res)
         obs, extra_obs = env_res
         #obs, extra_obs = self.env.step(action, add_extra = True)
         reward = sum([fn(obs, extra_obs) for fn in self.rewards])
