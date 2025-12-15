@@ -420,6 +420,15 @@ class AI2ThorBase(embodied.Env):
         elif index_to_action(int(action['action'])) == "STOP":
             self.chosen_actions.append(int(action['action']))
             self._done = True
+
+            try:
+                self.distance_left, self.room_type, cur_pos_xy = self.get_current_path_and_pose_state()
+                self.travelled_path.append(cur_pos_xy)
+            except ValueError as e:
+                self.distance_left = np.float32(0.0)
+                self._bad_spot = True
+                print('O', end='', sep='')
+
             print('S', end='', sep='')
             obs, extra_obs = self.current_ai2thor_observation()
         else:
