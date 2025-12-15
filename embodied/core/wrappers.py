@@ -41,19 +41,20 @@ class TimeLimit(Wrapper):
       self._done = False
       if self._reset:
         action.update(reset=True)
-        return self.env.step(action)
+        obs, extra_obs = self.env.step(action)
+        return obs, extra_obs
       else:
         action.update(reset=False)
-        obs = self.env.step(action)
+        obs, extra_obs = self.env.step(action)
         obs['is_first'] = True
-        return obs
+        return obs, extra_obs
     self._step += 1
-    obs = self.env.step(action)
+    obs, extra_obs = self.env.step(action)
     if self._duration and self._step >= self._duration:
       print("AE: Episode Duration Exceeded -- Terminating Episode : ", self._step, " / ", self._duration)
       obs['is_last'] = True
     self._done = obs['is_last']
-    return obs
+    return obs, extra_obs
 
 
 class ActionRepeat(Wrapper):
@@ -64,15 +65,16 @@ class ActionRepeat(Wrapper):
 
   def step(self, action):
     if action['reset']:
-      return self.env.step(action)
+      obs, extra_obs = self.env.step(action)
+      return obs, extra_obs
     reward = 0.0
     for _ in range(self._repeat):
-      obs = self.env.step(action)
+      obs, extra_obs = self.env.step(action)
       reward += obs['reward']
       if obs['is_last'] or obs['is_terminal']:
         break
     obs['reward'] = np.float32(reward)
-    return obs
+    return obs, extra_obs
 
 
 class ClipAction(Wrapper):
@@ -312,10 +314,10 @@ class ResizeImage(Wrapper):
     return spaces
 
   def step(self, action):
-    obs = self.env.step(action)
+    obs, extra_obs = self.env.step(action)
     for key in self._keys:
       obs[key] = self._resize(obs[key])
-    return obs
+    return obs, extra_obs
 
   def _resize(self, image):
     image = self._Image.fromarray(image)
@@ -358,11 +360,11 @@ class BackwardReturn(Wrapper):
     }
 
   def step(self, action):
-    obs = self.env.step(action)
+    obs, extra_obs = self.env.step(action)
     self._bwreturn *= (1 - obs['is_first']) * self._discount
     self._bwreturn += obs['reward']
     obs['bwreturn'] = np.float32(self._bwreturn)
-    return obs
+    return obs, extra_obs
 
 
 class AddObs(Wrapper):
@@ -381,9 +383,9 @@ class AddObs(Wrapper):
     }
 
   def step(self, action):
-    obs = self.env.step(action)
+    obs, extra_obs = self.env.step(action)
     obs[self._key] = self._value
-    return obs
+    return obs, extra_obs
 
 
 class RestartOnException(Wrapper):
@@ -403,7 +405,8 @@ class RestartOnException(Wrapper):
 
   def step(self, action):
     try:
-      return self.env.step(action)
+      obs, extra_obs = self.env.step(action)
+      return obs, extra_obs
     except self._exceptions as e:
       if time.time() > self._last + self._window:
         self._last = time.time()
@@ -417,4 +420,5 @@ class RestartOnException(Wrapper):
       time.sleep(self._wait)
       self.env = self._ctor()
       action['reset'] = np.ones_like(action['reset'])
-      return self.env.step(action)
+      obs, extra_obs = self.env.step(action)
+      return obs, extra_obs

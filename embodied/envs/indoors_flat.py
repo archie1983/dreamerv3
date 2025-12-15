@@ -43,8 +43,8 @@ class Roomcentre(embodied.Wrapper):
         super().__init__(env)
 
     def step(self, action):
-        obs = self.env.step(action)
-        reward = sum([fn(obs) for fn in self.rewards])
+        obs, extra_obs = self.env.step(action)
+        reward = sum([fn(obs, extra_obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
         if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
@@ -87,8 +87,8 @@ class Door(embodied.Wrapper):
 
     def step(self, action):
         #print("A1")
-        obs = self.env.step(action)
-        reward = sum([fn(obs) for fn in self.rewards])
+        obs, extra_obs = self.env.step(action)
+        reward = sum([fn(obs, extra_obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
         #print("A2")
 
@@ -118,11 +118,11 @@ class DistanceReductionReward:
         self.prev_distance = None
         self.best_distance_so_far = None
 
-    def __call__(self, obs, inventory=None):
+    def __call__(self, obs, extra_obs, inventory=None):
         #print("D1")
         reward = 0.0
         #distance_left = obs['distance_left']
-        distance_left = obs['distanceleft']
+        distance_left = extra_obs['distanceleft']
 
         if obs['is_first']:
             self.best_distance_so_far = distance_left
@@ -182,13 +182,13 @@ class TargetAchievedRewardForDoor:
         self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
-    def __call__(self, obs, inventory=None):
+    def __call__(self, obs, extra_obs, inventory=None):
         #print("T1")
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
         #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
-        elif not self.reward_issued and (obs['distanceleft'] <= self.epsilon or obs['stepsafterroomchange'] >= self.steps_in_new_room):
+        elif not self.reward_issued and (extra_obs['distanceleft'] <= self.epsilon or extra_obs['stepsafterroomchange'] >= self.steps_in_new_room):
             reward = 20
             self.reward_issued = True
         #print("T2")
@@ -206,39 +206,17 @@ class TargetAchievedRewardRoomCentre:
         self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
-    def __call__(self, obs, inventory=None):
+    def __call__(self, obs, extra_obs, inventory=None):
         #print("T1")
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
         #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
-        elif not self.reward_issued and obs['distanceleft'] <= self.epsilon:
+        elif not self.reward_issued and extra_obs['distanceleft'] <= self.epsilon:
             reward = 20
             self.reward_issued = True
         #print("T2")
         return np.float32(reward)
-
-class CollectReward:
-
-    def __init__(self, item, once=0, repeated=0):
-        self.item = item
-        self.once = once
-        self.repeated = repeated
-        self.previous = 0
-        self.maximum = 0
-
-    def __call__(self, obs, inventory):
-        current = inventory[self.item]
-        if obs['is_first']:
-            self.previous = current
-            self.maximum = current
-            return 0
-        reward = self.repeated * max(0, current - self.previous)
-        if self.maximum == 0 and current > 0:
-            reward += self.once
-        self.previous = current
-        self.maximum = max(self.maximum, current)
-        return reward
 
 class AI2ThorBase(embodied.Env):
 
@@ -386,12 +364,9 @@ class AI2ThorBase(embodied.Env):
             'is_first': elements.Space(bool),
             'is_last': elements.Space(bool),
             'is_terminal': elements.Space(bool),
-            #'distance_left': elements.Space(np.float32),
-            #'steps_after_room_change': elements.Space(np.float32),
-            #'room_type': elements.Space(np.float32),
-            'distanceleft': elements.Space(np.float32),
-            'stepsafterroomchange': elements.Space(np.float32),
-            'roomtype': elements.Space(np.float32),
+            #'distanceleft': elements.Space(np.float32),
+            #'stepsafterroomchange': elements.Space(np.float32),
+            #'roomtype': elements.Space(np.float32),
         }
 
     @property
@@ -436,7 +411,7 @@ class AI2ThorBase(embodied.Env):
                 with open(self.logdir + "/episode_data.jsonl", "a") as f:
                     f.write(json.dumps(episode_stats) + "\n")
 
-            obs = self._reset()
+            obs, extra_obs = self._reset()
         else:
             raw_action = index_to_action(int(action['action']))
             self.rnc.execute_action(raw_action, moveMagnitude=self.grid_size, grid_size=self.grid_size, adhere_to_grid=True)
@@ -462,18 +437,18 @@ class AI2ThorBase(embodied.Env):
                 #obs = self._reset()
                 self._done = True
             #else:
-            obs = self.current_ai2thor_observation()
+            obs, extra_obs = self.current_ai2thor_observation()
 
         # Now we turn the obs that was returned by the environment into obs that we use for training,
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
-        obs = self._obs(obs)
+        obs, extra_obs = self._obs(obs, extra_obs)
         self._step += 1
         self.step_count_in_current_episode += 1
         self.step_count_since_start += 1
         assert 'pov' not in obs, list(obs.keys())
         #print("S2")
         self.prev_obs = obs
-        return obs
+        return obs, extra_obs
 
     ##
     # Returns current observation of the state (image mostly)
@@ -493,19 +468,20 @@ class AI2ThorBase(embodied.Env):
             is_first = np.bool(self.isFirst),
             is_last = np.bool(self._done),
             is_terminal = np.bool(self._done),
-            #distance_left = np.float32(self.distance_left),
-            #steps_after_room_change = np.float32(self.steps_in_new_room),
-            #room_type = np.float32(self.room_type),
+        )
+
+        extra_obs = dict(
             distanceleft=np.float32(self.distance_left),
             stepsafterroomchange=np.float32(self.steps_in_new_room),
             roomtype=np.float32(self.room_type),
         )
+
         if self._done:
             print('D', sep='', end='')
 
         self.isFirst = False # this will have to be set to True when we reset the env
         #print("O2")
-        return obs
+        return obs, extra_obs
 
     def _reset(self):
         #print("R1")
@@ -529,11 +505,11 @@ class AI2ThorBase(embodied.Env):
         self.room_type = -1
         self.starting_room = None
 
-        obs = self.current_ai2thor_observation()
+        obs, extra_obs = self.current_ai2thor_observation()
         #print("R2")
-        return obs
+        return obs, extra_obs
 
-    def _obs(self, obs):
+    def _obs(self, obs, extra_obs):
         #print("_O1")
         obs = {
             'image': obs['pov'],
@@ -541,14 +517,14 @@ class AI2ThorBase(embodied.Env):
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
-            #'distance_left': obs['distance_left'],
-            #'steps_after_room_change': obs['steps_after_room_change'],
-            #'room_type': obs['room_type'],
-            'distanceleft': obs['distanceleft'],
-            'stepsafterroomchange': obs['stepsafterroomchange'],
-            'roomtype': obs['roomtype'],
-            # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
+
+        extra_obs = {
+            'distanceleft': extra_obs['distanceleft'],
+            'stepsafterroomchange': extra_obs['stepsafterroomchange'],
+            'roomtype': extra_obs['roomtype'],
+        }
+
         #print("obs: ", obs)
         for key, value in obs.items():
             space = self._obs_space[key]
@@ -558,7 +534,7 @@ class AI2ThorBase(embodied.Env):
             assert value in space, (key, value, value.dtype, value.shape, space)
         #print("obs: ", obs)
         #print("_O2")
-        return obs
+        return obs, extra_obs
 
     def load_random_habitat(self):
         #print("LRH1")
