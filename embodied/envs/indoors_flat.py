@@ -49,7 +49,7 @@ class Roomcentre(embodied.Wrapper):
         #print("AE: env_res: ", env_res)
         obs, extra_obs = env_res
         #obs, extra_obs = self.env.step(action, add_extra = True)
-        reward = sum([fn(obs, extra_obs) for fn in self.rewards])
+        reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
         if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
@@ -93,7 +93,7 @@ class Door(embodied.Wrapper):
     def step(self, action):
         #print("A1")
         obs, extra_obs = self.env.step(action, add_extra=True)
-        reward = sum([fn(obs, extra_obs) for fn in self.rewards])
+        reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
         #print("A2")
 
@@ -123,7 +123,7 @@ class DistanceReductionReward:
         self.prev_distance = None
         self.best_distance_so_far = None
 
-    def __call__(self, obs, extra_obs, inventory=None):
+    def __call__(self, obs, extra_obs, action, inventory=None):
         #print("D1")
         reward = 0.0
         #distance_left = obs['distance_left']
@@ -187,16 +187,23 @@ class TargetAchievedRewardForDoor:
         self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
-    def __call__(self, obs, extra_obs, inventory=None):
+    def __call__(self, obs, extra_obs, action, inventory=None):
         #print("T1")
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
-        #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
-        elif not self.reward_issued and (extra_obs['distanceleft'] <= self.epsilon or extra_obs['stepsafterroomchange'] >= self.steps_in_new_room):
-            reward = 20
+        elif not self.reward_issued and index_to_action(int(action['action'])) == "STOP":
+            '''
+            We only want to issue this reward once the STOP action has been issued by the model. And at that point we will calculate
+            how much we award based on distance left
+            '''
+            # double the penalty for distance left to discourage early STOP
+            reward = extra_obs['initial_distance'] - 2 * extra_obs['distanceleft']
+            # extra reward for achieving epsilon requirement
+            if (extra_obs['distanceleft'] <= self.epsilon or extra_obs['stepsafterroomchange'] >= self.steps_in_new_room):
+                reward += 20
             self.reward_issued = True
-            # print("WIN", self.epsilon)
+            #print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
         return np.float32(reward)
 
 ##
@@ -211,16 +218,23 @@ class TargetAchievedRewardRoomCentre:
         self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
-    def __call__(self, obs, extra_obs, inventory=None):
+    def __call__(self, obs, extra_obs, action, inventory=None):
         #print("T1")
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
-        #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
-        elif not self.reward_issued and extra_obs['distanceleft'] <= self.epsilon:
-            reward = 20
+        elif not self.reward_issued and index_to_action(int(action['action'])) == "STOP":
+            '''
+            We only want to issue this reward once the STOP action has been issued by the model. And at that point we will calculate
+            how much we award based on distance left
+            '''
+            # double the penalty for distance left to discourage early STOP
+            reward = extra_obs['initial_distance'] - 2 * extra_obs['distanceleft']
+            # extra reward for achieving epsilon requirement
+            if extra_obs['distanceleft'] <= self.epsilon:
+                reward += 20
             self.reward_issued = True
-            #print("WIN", self.epsilon)
+            #print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
         return np.float32(reward)
 
 class AI2ThorBase(embodied.Env):
@@ -331,6 +345,7 @@ class AI2ThorBase(embodied.Env):
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
         # further points.
         self.initial_path_length = 0
+        self.initial_distance = 1000.0
 
         # If we use reward that tracks the best length of the path left, then we will need this variable
         self.best_path_length = 0
@@ -496,6 +511,7 @@ class AI2ThorBase(embodied.Env):
             distanceleft=np.float32(self.distance_left),
             stepsafterroomchange=np.float32(self.steps_in_new_room),
             roomtype=np.float32(self.room_type),
+            initial_distance=np.float32(self.initial_distance)
         )
 
         if self._done:
@@ -545,6 +561,7 @@ class AI2ThorBase(embodied.Env):
             'distanceleft': extra_obs['distanceleft'],
             'stepsafterroomchange': extra_obs['stepsafterroomchange'],
             'roomtype': extra_obs['roomtype'],
+            'initial_distance': extra_obs['initial_distance']
         }
 
         #print("obs: ", obs)
@@ -822,6 +839,13 @@ class AI2ThorBase(embodied.Env):
             # many times and reward will be calculated using it.
             self.current_path_length = self.initial_path_length
             self.best_path_length = self.initial_path_length
+
+            try:
+                self.initial_distance, _, _ = self.get_current_path_and_pose_state()
+            except ValueError as e:
+                self.initial_distance = np.float32(1000.0)
+                self._bad_spot = True
+                print('o', end='', sep='')
 
             #print("CH2")
             path_planned = True
