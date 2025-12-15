@@ -40,10 +40,14 @@ class Roomcentre(embodied.Wrapper):
         env = RoomCentreFinder(actions, *args, **kwargs)
         self.unwrapped_env = env
         env = embodied.wrappers.TimeLimit(env, length)
+        print("AE: TimeWrapped: ", env)
         super().__init__(env)
 
     def step(self, action):
-        obs, extra_obs = self.env.step(action)
+        env_res = self.env.step(action, add_extra = True)
+        print("AE: env_res: ", env_res)
+        obs, extra_obs = env_res
+        #obs, extra_obs = self.env.step(action, add_extra = True)
         reward = sum([fn(obs, extra_obs) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
@@ -376,7 +380,7 @@ class AI2ThorBase(embodied.Env):
             'reset': elements.Space(bool),
         }
 
-    def step(self, action):
+    def step(self, action, add_extra = False):
         # If this env has been retired (in evaluation mode we have evaluated everything already), then
         # don't actually do any stepping, but just return the previous obs
         if self.env_retired:
@@ -448,7 +452,10 @@ class AI2ThorBase(embodied.Env):
         assert 'pov' not in obs, list(obs.keys())
         #print("S2")
         self.prev_obs = obs
-        return obs, extra_obs
+        if add_extra:
+            return obs, extra_obs
+        else:
+            return obs
 
     ##
     # Returns current observation of the state (image mostly)
