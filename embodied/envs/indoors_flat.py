@@ -398,11 +398,11 @@ class AI2ThorBase(embodied.Env):
             print('R', end='', sep='')
             # STORE EPISODE STATS:
             # A* path length, A* path, travelled path length, travelled path, habitat id, actions taken.
-            if self.hab_set != "train":
+            if self.hab_set == "train":
                 episode_stats = {
                     "local_step": self.step_count_since_start,
                     "steps_used": self.step_count_in_current_episode,
-                    "habitat_id": self.habitat_id,
+                    "habitat_id": str(self.habitat_id),
                     "bad_spot": self._bad_spot,
                     "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
                     "path_start": self.path_start,
@@ -411,10 +411,10 @@ class AI2ThorBase(embodied.Env):
                     "travelled_path": self.travelled_path,
                     "chosen_actions": self.chosen_actions,
                 }
-                #print(hab_exploration_stats)
+            #print(episode_stats)
 
-                with open(self.logdir + "/episode_data.jsonl", "a") as f:
-                    f.write(json.dumps(episode_stats) + "\n")
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
 
             obs, extra_obs = self._reset()
         elif index_to_action(int(action['action'])) == "STOP":
