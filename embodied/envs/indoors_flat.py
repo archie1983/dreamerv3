@@ -52,7 +52,7 @@ class Roomcentre(embodied.Wrapper):
         reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
         obs['reward'] = np.float32(reward)
 
-        if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
+        if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }
@@ -97,7 +97,7 @@ class Door(embodied.Wrapper):
         obs['reward'] = np.float32(reward)
         #print("A2")
 
-        if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
+        if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }
@@ -1007,20 +1007,20 @@ class DoorFinder(AI2ThorBase):
                                                             step=self.grid_size, extend_path=True)
 
             # t1 = time.time()
-            pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
-                    (0.0, place_with_rtn[2], 0.0))  # place_with_rtn in AI2-Thor format
-            path_length = self.nu.get_path_cost_to_target_point(pose,
-                                                                current_target_point,
-                                                                self.reachable_positions,
-                                                                close_enough=self.plan_close_enough,
-                                                                step=self.grid_size)
+            # pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
+            #         (0.0, place_with_rtn[2], 0.0))  # place_with_rtn in AI2-Thor format
+            # path_length = self.nu.get_path_cost_to_target_point(pose,
+            #                                                     current_target_point,
+            #                                                     self.reachable_positions,
+            #                                                     close_enough=self.plan_close_enough,
+            #                                                     step=self.grid_size)
 
             # if we've been successful so far, then we can now look up room type
             trg_pos_xy = (current_target_point.x, "", current_target_point.y)
             self.target_room = room_this_point_belongs_to(self.rooms_in_habitat, trg_pos_xy)
             # print("AE: path plan time: ", (time.time() - t1))
         except ValueError as e:
-            path_length = 0
+            #path_length = 0
             # print("AE: No Path Found", e)
             print('£', end='', sep='')
 
