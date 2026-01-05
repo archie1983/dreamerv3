@@ -38,7 +38,7 @@ defaults:
     ai2thorae: {size: [64, 64], repeat: 1, episodic: True, use_seed: True}
     indoorsae: {size: [64, 64], logs: False, length: 2500, grid_size: 0.125, close_enough: 0.25}
     indoors: {size: [64, 64], logs: False, length: 2500, hab_space: [0, 9999], hab_set: "train", places_per_hab: 20, grid_size: 0.125, reward_close_enough: 0.25, plan_close_enough: 0.25}
-    indoorseval: {size: [64, 64], logs: False, length: 50, hab_space: [0, 999], hab_set: "test", places_per_hab: 10, grid_size: 0.125, reward_close_enough: 0.25, plan_close_enough: 0.25}
+    indoorseval: {size: [64, 64], logs: False, length: 2500, hab_space: [0, 999], hab_set: "test", places_per_hab: 10, grid_size: 0.125, reward_close_enough: 0.25, plan_close_enough: 0.25}
 
   replay:
     size: 5e6
@@ -215,9 +215,14 @@ indoorsrc:
 indoorsdoor:
   task: indoors_door
 
-indoorsae_eval:
+indoorsaedoor_eval:
   task: indoorseval_door
-  run: {steps: 50000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
+  run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
+  script: eval_only
+
+indoorsaeroomcentre_eval:
+  task: indoorseval_roomcentre
+  run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 
 multicpu:

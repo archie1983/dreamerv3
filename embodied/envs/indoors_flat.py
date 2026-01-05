@@ -49,7 +49,14 @@ class Roomcentre(embodied.Wrapper):
         #print("AE: env_res: ", env_res)
         obs, extra_obs = env_res
         #obs, extra_obs = self.env.step(action, add_extra = True)
-        reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+
+        # We will use choose_habitats_randomly_or_sequentially flag for determining whether we are in training mode (True)
+        # and need to calculate reward, or we're in testing mode (False) and reward should be set to 0.
+        if self.unwrapped_env.choose_habitats_randomly_or_sequentially:
+            reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+        else:
+            reward = 0.0
+
         obs['reward'] = np.float32(reward)
 
         if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
@@ -93,7 +100,14 @@ class Door(embodied.Wrapper):
     def step(self, action):
         #print("A1")
         obs, extra_obs = self.env.step(action, add_extra=True)
-        reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+
+        # We will use choose_habitats_randomly_or_sequentially flag for determining whether we are in training mode (True)
+        # and need to calculate reward, or we're in testing mode (False) and reward should be set to 0.
+        if self.unwrapped_env.choose_habitats_randomly_or_sequentially:
+            reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+        else:
+            reward = 0.0
+
         obs['reward'] = np.float32(reward)
         #print("A2")
 
@@ -419,19 +433,19 @@ class AI2ThorBase(embodied.Env):
             print('R', end='', sep='')
             # STORE EPISODE STATS:
             # A* path length, A* path, travelled path length, travelled path, habitat id, actions taken.
-            if self.hab_set == "train":
-                episode_stats = {
-                    "local_step": self.step_count_since_start,
-                    "steps_used": self.step_count_in_current_episode,
-                    "habitat_id": str(self.habitat_id),
-                    "bad_spot": self._bad_spot,
-                    "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
-                    "path_start": self.path_start,
-                    "path_dest": self.path_dest,
-                    "astar_path": self.astar_path,
-                    "travelled_path": self.travelled_path,
-                    "chosen_actions": self.chosen_actions,
-                }
+            #if self.hab_set == "train":
+            episode_stats = {
+                "local_step": self.step_count_since_start,
+                "steps_used": self.step_count_in_current_episode,
+                "habitat_id": str(self.habitat_id),
+                "bad_spot": self._bad_spot,
+                "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
+                "path_start": self.path_start,
+                "path_dest": self.path_dest,
+                "astar_path": self.astar_path,
+                "travelled_path": self.travelled_path,
+                "chosen_actions": self.chosen_actions,
+            }
             #print(episode_stats)
 
             with open(self.logdir + "/episode_data.jsonl", "a") as f:
