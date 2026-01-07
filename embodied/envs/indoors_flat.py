@@ -451,6 +451,9 @@ class AI2ThorBase(embodied.Env):
                 "travelled_path": self.travelled_path,
                 "chosen_actions": self.chosen_actions,
             }
+            # specially for door finder- if we're running it, we want all door targets
+            if hasattr(self, 'all_door_targets'):
+                episode_stats['all_door_targets'] = self.all_door_targets
             #print(episode_stats)
 
             with open(self.logdir + "/episode_data.jsonl", "a") as f:
