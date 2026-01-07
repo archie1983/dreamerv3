@@ -454,6 +454,9 @@ class AI2ThorBase(embodied.Env):
             # specially for door finder- if we're running it, we want all door targets
             if hasattr(self, 'all_door_targets'):
                 episode_stats['all_door_targets'] = self.all_door_targets
+
+            if hasattr(self, 'all_astar_paths'):
+                episode_stats['all_astar_paths'] = self.all_astar_paths
             #print(episode_stats)
 
             with open(self.logdir + "/episode_data.jsonl", "a") as f:
@@ -834,6 +837,19 @@ class AI2ThorBase(embodied.Env):
                 (self.astar_path, _, self.path_start, self.path_dest) = self.nu.get_last_path_and_params()
                 #print("AE: Path: ", self.astar_path)
 
+                # If we have several permissible destinations, then calculate A* path for all of them
+                if hasattr(self, 'all_door_targets'):
+                    self.all_astar_paths = []
+                    for dt in self.all_door_targets:
+                        target_point = Point(dt["pos"]["x"], dt["pos"]["z"])
+                        path_length = self.nu.get_path_cost_to_target_point(cur_pos,
+                                                                             target_point,
+                                                                             self.reachable_positions,
+                                                                             close_enough=self.plan_close_enough,
+                                                                             step=self.grid_size)
+                        (astar_path, _, _, _) = self.nu.get_last_path_and_params()
+                        self.all_astar_paths.append(astar_path)
+
                 if isinstance(self, DoorFinder):
                     # what is the room we start in
                     self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
@@ -1070,11 +1086,12 @@ class DoorFinder(AI2ThorBase):
         # If we're free to choose any door as destination (i.e., we are evaluating),
         # then mark it as arrived if we're within distance of any door
         if eval:
-            for dt in self.all_door_targets:
-                p1 = (dt['pos']['x'], dt['pos']['z'])
-                p2 = (self.cur_pos_xy[0], self.cur_pos_xy[0])
-                if euclidean_dist(p1, p2) <= epsilon:
-                    return True
+            if self.all_door_targets != None:
+                for dt in self.all_door_targets:
+                    p1 = (dt['pos']['x'], dt['pos']['z'])
+                    p2 = (self.cur_pos_xy[0], self.cur_pos_xy[2])
+                    if euclidean_dist(p1, p2) <= epsilon:
+                        return True
             return False
         else: # otherwise we have a calculated path length to the specific door that we want and we need to compare that to allowed error
             return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)
