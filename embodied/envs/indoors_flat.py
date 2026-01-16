@@ -924,11 +924,16 @@ class AI2ThorBase(embodied.Env):
         #print("G1")
         try:
             cur_pos = self.rnc.get_agent_pos_and_rotation()
-            self.current_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
-                                                                             self.current_target_point,
-                                                                             self.reachable_positions,
-                                                                             close_enough=self.plan_close_enough,
-                                                                             step=self.grid_size)
+            # we only need to re-calculate path length at every step, when we train. If we test, then we don't need to.
+            if self.choose_habitats_randomly_or_sequentially:
+                self.current_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
+                                                                                 self.current_target_point,
+                                                                                 self.reachable_positions,
+                                                                                 close_enough=self.plan_close_enough,
+                                                                                 step=self.grid_size)
+            else:
+                self.current_path_length = 0.0
+
             self.current_path_length = np.float32(self.current_path_length)
         except ValueError as e:
             #print(f"ERROR: {e}")
