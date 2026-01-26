@@ -1,7 +1,7 @@
 import logging, threading, elements, random, embodied, traceback
 import numpy as np
 from ai2_thor_model_training.training_data_extraction import RobotNavigationControl
-from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
+from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping, euclidean_dist,
                                               action_to_index, index_to_action, inverted_action_mapping,
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
@@ -26,28 +26,40 @@ class Roomcentre(embodied.Wrapper):
     def __init__(self, *args, **kwargs):
         self.logdir = kwargs["logdir"]
         actions = action_mapping
+        reward_close_enough = kwargs["reward_close_enough"]
 
         # Actions
         actions = actions.copy()
-        if "STOP" in actions:
-            actions.pop("STOP")  # remove STOP action because that will be treated differently
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self.rewards = [
             DistanceReductionReward(),
-            TargetAchievedRewardRoomCentre(),
+            TargetAchievedRewardRoomCentre(epsilon=reward_close_enough),
         ]
         length = kwargs.pop('length', 36000)
         env = RoomCentreFinder(actions, *args, **kwargs)
         self.unwrapped_env = env
         env = embodied.wrappers.TimeLimit(env, length)
+        print("AE: TimeWrapped: ", env)
         super().__init__(env)
 
     def step(self, action):
-        obs = self.env.step(action)
-        reward = sum([fn(obs) for fn in self.rewards])
+        env_res = self.env.step(action, add_extra = True)
+        #print("AE: env_res: ", env_res)
+        obs, extra_obs = env_res
+        #obs, extra_obs = self.env.step(action, add_extra = True)
+
+        # We will use choose_habitats_randomly_or_sequentially flag for determining whether we are in training mode (True)
+        # and need to calculate reward, or we're in testing mode (False) and reward should be set to 0.
+        if self.unwrapped_env.choose_habitats_randomly_or_sequentially:
+            reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+        else:
+            reward = 0.0
+
         obs['reward'] = np.float32(reward)
 
-        if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
+        if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }
@@ -70,8 +82,8 @@ class Door(embodied.Wrapper):
 
         # Actions
         actions = actions.copy()
-        if "STOP" in actions:
-            actions.pop("STOP")  # remove STOP action because that will be treated differently
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self.rewards = [
             DistanceReductionReward(scale=1.0),
@@ -87,12 +99,19 @@ class Door(embodied.Wrapper):
 
     def step(self, action):
         #print("A1")
-        obs = self.env.step(action)
-        reward = sum([fn(obs) for fn in self.rewards])
+        obs, extra_obs = self.env.step(action, add_extra=True)
+
+        # We will use choose_habitats_randomly_or_sequentially flag for determining whether we are in training mode (True)
+        # and need to calculate reward, or we're in testing mode (False) and reward should be set to 0.
+        if self.unwrapped_env.choose_habitats_randomly_or_sequentially:
+            reward = sum([fn(obs, extra_obs, action) for fn in self.rewards])
+        else:
+            reward = 0.0
+
         obs['reward'] = np.float32(reward)
         #print("A2")
 
-        if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
+        if obs['is_last'] and not self.unwrapped_env.env_retired:# and self.unwrapped_env.hab_set != "train":
             episode_stats = {
                 "final_reward": str(obs['reward']),
             }
@@ -118,11 +137,11 @@ class DistanceReductionReward:
         self.prev_distance = None
         self.best_distance_so_far = None
 
-    def __call__(self, obs, inventory=None):
+    def __call__(self, obs, extra_obs, action, inventory=None):
         #print("D1")
         reward = 0.0
         #distance_left = obs['distance_left']
-        distance_left = obs['distanceleft']
+        distance_left = extra_obs['distanceleft']
 
         if obs['is_first']:
             self.best_distance_so_far = distance_left
@@ -182,16 +201,26 @@ class TargetAchievedRewardForDoor:
         self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
-    def __call__(self, obs, inventory=None):
+    def __call__(self, obs, extra_obs, action, inventory=None):
         #print("T1")
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
-        #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
-        elif not self.reward_issued and (obs['distanceleft'] <= self.epsilon or obs['stepsafterroomchange'] >= self.steps_in_new_room):
-            reward = 20
+        elif not self.reward_issued and index_to_action(int(action['action'])) == "STOP":
+            '''
+            We only want to issue this reward once the STOP action has been issued by the model. And at that point we will calculate
+            how much we award based on distance left
+            '''
+            # double the penalty for distance left to discourage early STOP
+            if extra_obs['distanceleft'] >= extra_obs['initial_distance']:
+                reward = (extra_obs['initial_distance'] - 2 * extra_obs['distanceleft'])
+            else:
+                reward = 3 * (extra_obs['initial_distance'] - extra_obs['distanceleft'])
+            # extra reward for achieving epsilon requirement
+            if (extra_obs['distanceleft'] <= self.epsilon or extra_obs['stepsafterroomchange'] >= self.steps_in_new_room):
+                reward += 20
             self.reward_issued = True
-        #print("T2")
+            #print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
         return np.float32(reward)
 
 ##
@@ -206,39 +235,27 @@ class TargetAchievedRewardRoomCentre:
         self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
-    def __call__(self, obs, inventory=None):
+    def __call__(self, obs, extra_obs, action, inventory=None):
         #print("T1")
         reward = 0
         if obs['is_first']:
             self.reward_issued = False
-        #elif not self.reward_issued and (obs['distance_left'] <= self.epsilon or obs['steps_after_room_change'] >= self.steps_in_new_room):
-        elif not self.reward_issued and obs['distanceleft'] <= self.epsilon:
-            reward = 20
+        elif not self.reward_issued and index_to_action(int(action['action'])) == "STOP":
+            '''
+            We only want to issue this reward once the STOP action has been issued by the model. And at that point we will calculate
+            how much we award based on distance left
+            '''
+            # double the penalty for distance left to discourage early STOP
+            if extra_obs['distanceleft'] >= extra_obs['initial_distance']:
+                reward = (extra_obs['initial_distance'] - 2 * extra_obs['distanceleft'])
+            else:
+                reward = 3 * (extra_obs['initial_distance'] - extra_obs['distanceleft'])
+            # extra reward for achieving epsilon requirement
+            if extra_obs['distanceleft'] <= self.epsilon:
+                reward += 20
             self.reward_issued = True
-        #print("T2")
+            #print("final reward: ", reward, " = ", extra_obs['initial_distance'], " - ", extra_obs['distanceleft'])
         return np.float32(reward)
-
-class CollectReward:
-
-    def __init__(self, item, once=0, repeated=0):
-        self.item = item
-        self.once = once
-        self.repeated = repeated
-        self.previous = 0
-        self.maximum = 0
-
-    def __call__(self, obs, inventory):
-        current = inventory[self.item]
-        if obs['is_first']:
-            self.previous = current
-            self.maximum = current
-            return 0
-        reward = self.repeated * max(0, current - self.previous)
-        if self.maximum == 0 and current > 0:
-            reward += self.once
-        self.previous = current
-        self.maximum = max(self.maximum, current)
-        return reward
 
 class AI2ThorBase(embodied.Env):
 
@@ -310,6 +327,7 @@ class AI2ThorBase(embodied.Env):
         self.step_count_in_current_episode = 0
         self.step_count_since_start = 0
         self.distance_left = np.float32(0.0)
+        self.cur_pos_xy = None
         self.room_type = -1 # current room type
         self.starting_room = None # which room we end up in when we spawn
         self.target_room = None # which room we want to end up in
@@ -317,6 +335,7 @@ class AI2ThorBase(embodied.Env):
         self.steps_in_new_room = 0 # how many steps have we made inside the new room since we first stepped into the target room (resets if we leave target room)
         self.env_retired = False # in some cases we want to be able to signal to driver.py that this env does not need driving anymore. This will help with that.
         self.prev_obs = None
+        self.prev_extra_obs = None
 
         # When we store the statistics of each test run, we will want to capture these variables
         self.astar_path = []
@@ -348,6 +367,7 @@ class AI2ThorBase(embodied.Env):
         # with the A* path length from that random position to the desired point. This will help calculate reward from all
         # further points.
         self.initial_path_length = 0
+        self.initial_distance = 1000.0
 
         # If we use reward that tracks the best length of the path left, then we will need this variable
         self.best_path_length = 0
@@ -386,12 +406,9 @@ class AI2ThorBase(embodied.Env):
             'is_first': elements.Space(bool),
             'is_last': elements.Space(bool),
             'is_terminal': elements.Space(bool),
-            #'distance_left': elements.Space(np.float32),
-            #'steps_after_room_change': elements.Space(np.float32),
-            #'room_type': elements.Space(np.float32),
-            'distanceleft': elements.Space(np.float32),
-            'stepsafterroomchange': elements.Space(np.float32),
-            'roomtype': elements.Space(np.float32),
+            #'distanceleft': elements.Space(np.float32),
+            #'stepsafterroomchange': elements.Space(np.float32),
+            #'roomtype': elements.Space(np.float32),
         }
 
     @property
@@ -401,11 +418,14 @@ class AI2ThorBase(embodied.Env):
             'reset': elements.Space(bool),
         }
 
-    def step(self, action):
+    def step(self, action, add_extra = False):
         # If this env has been retired (in evaluation mode we have evaluated everything already), then
         # don't actually do any stepping, but just return the previous obs
         if self.env_retired:
-            return self.prev_obs
+            if add_extra:
+                return self.prev_obs, self.prev_extra_obs
+            else:
+                return self.prev_obs
 
         #print("S1")
         action = action.copy()
@@ -418,25 +438,45 @@ class AI2ThorBase(embodied.Env):
             print('R', end='', sep='')
             # STORE EPISODE STATS:
             # A* path length, A* path, travelled path length, travelled path, habitat id, actions taken.
-            if self.hab_set != "train":
-                episode_stats = {
-                    "local_step": self.step_count_since_start,
-                    "steps_used": self.step_count_in_current_episode,
-                    "habitat_id": self.habitat_id,
-                    "bad_spot": self._bad_spot,
-                    "have_arrived": str(self.have_we_arrived(self.reward_close_enough)),
-                    "path_start": self.path_start,
-                    "path_dest": self.path_dest,
-                    "astar_path": self.astar_path,
-                    "travelled_path": self.travelled_path,
-                    "chosen_actions": self.chosen_actions,
-                }
-                #print(hab_exploration_stats)
+            #if self.hab_set == "train":
+            episode_stats = {
+                "local_step": self.step_count_since_start,
+                "steps_used": self.step_count_in_current_episode,
+                "habitat_id": str(self.habitat_id),
+                "bad_spot": self._bad_spot,
+                "have_arrived": str(self.have_we_arrived(epsilon=self.reward_close_enough, eval=(not self.choose_habitats_randomly_or_sequentially))),
+                "path_start": self.path_start,
+                "path_dest": self.path_dest,
+                "astar_path": self.astar_path,
+                "travelled_path": self.travelled_path,
+                "chosen_actions": self.chosen_actions,
+            }
+            # specially for door finder- if we're running it, we want all door targets
+            if hasattr(self, 'all_door_targets'):
+                episode_stats['all_door_targets'] = self.all_door_targets
 
-                with open(self.logdir + "/episode_data.jsonl", "a") as f:
-                    f.write(json.dumps(episode_stats) + "\n")
+            if hasattr(self, 'all_astar_paths'):
+                episode_stats['all_astar_paths'] = self.all_astar_paths
+            #print(episode_stats)
 
-            obs = self._reset()
+            with open(self.logdir + "/episode_data.jsonl", "a") as f:
+                f.write(json.dumps(episode_stats) + "\n")
+
+            obs, extra_obs = self._reset()
+        elif index_to_action(int(action['action'])) == "STOP":
+            self.chosen_actions.append(int(action['action']))
+            self._done = True
+
+            try:
+                self.distance_left, self.room_type, self.cur_pos_xy = self.get_current_path_and_pose_state()
+                self.travelled_path.append(self.cur_pos_xy)
+            except ValueError as e:
+                self.distance_left = np.float32(0.0)
+                self._bad_spot = True
+                print('O', end='', sep='')
+
+            print('S', end='', sep='')
+            obs, extra_obs = self.current_ai2thor_observation()
         else:
             raw_action = index_to_action(int(action['action']))
             self.rnc.execute_action(raw_action, moveMagnitude=self.grid_size, grid_size=self.grid_size, adhere_to_grid=True)
@@ -445,9 +485,9 @@ class AI2ThorBase(embodied.Env):
             # to allow observation to be up to date. In time this should be moved to some function instead of relying
             # on global variables.
             try:
-                self.distance_left, self.room_type, cur_pos_xy = self.get_current_path_and_pose_state()
-                self.travelled_path.append(cur_pos_xy)
-                self._done = self.have_we_arrived(self.reward_close_enough)
+                self.distance_left, self.room_type, self.cur_pos_xy = self.get_current_path_and_pose_state()
+                self.travelled_path.append(self.cur_pos_xy)
+                #self._done = self.have_we_arrived(self.reward_close_enough)
             except ValueError as e:
                 self.distance_left = np.float32(0.0)
                 self._bad_spot = True
@@ -462,18 +502,22 @@ class AI2ThorBase(embodied.Env):
                 #obs = self._reset()
                 self._done = True
             #else:
-            obs = self.current_ai2thor_observation()
+            obs, extra_obs = self.current_ai2thor_observation()
 
         # Now we turn the obs that was returned by the environment into obs that we use for training,
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
-        obs = self._obs(obs)
+        obs, extra_obs = self._obs(obs, extra_obs)
         self._step += 1
         self.step_count_in_current_episode += 1
         self.step_count_since_start += 1
         assert 'pov' not in obs, list(obs.keys())
         #print("S2")
         self.prev_obs = obs
-        return obs
+        self.prev_extra_obs = extra_obs
+        if add_extra:
+            return obs, extra_obs
+        else:
+            return obs
 
     ##
     # Returns current observation of the state (image mostly)
@@ -493,19 +537,21 @@ class AI2ThorBase(embodied.Env):
             is_first = np.bool(self.isFirst),
             is_last = np.bool(self._done),
             is_terminal = np.bool(self._done),
-            #distance_left = np.float32(self.distance_left),
-            #steps_after_room_change = np.float32(self.steps_in_new_room),
-            #room_type = np.float32(self.room_type),
+        )
+
+        extra_obs = dict(
             distanceleft=np.float32(self.distance_left),
             stepsafterroomchange=np.float32(self.steps_in_new_room),
             roomtype=np.float32(self.room_type),
+            initial_distance=np.float32(self.initial_distance)
         )
+
         if self._done:
             print('D', sep='', end='')
 
         self.isFirst = False # this will have to be set to True when we reset the env
         #print("O2")
-        return obs
+        return obs, extra_obs
 
     def _reset(self):
         #print("R1")
@@ -529,11 +575,11 @@ class AI2ThorBase(embodied.Env):
         self.room_type = -1
         self.starting_room = None
 
-        obs = self.current_ai2thor_observation()
+        obs, extra_obs = self.current_ai2thor_observation()
         #print("R2")
-        return obs
+        return obs, extra_obs
 
-    def _obs(self, obs):
+    def _obs(self, obs, extra_obs):
         #print("_O1")
         obs = {
             'image': obs['pov'],
@@ -541,14 +587,15 @@ class AI2ThorBase(embodied.Env):
             'is_first': obs['is_first'],
             'is_last': obs['is_last'],
             'is_terminal': obs['is_terminal'],
-            #'distance_left': obs['distance_left'],
-            #'steps_after_room_change': obs['steps_after_room_change'],
-            #'room_type': obs['room_type'],
-            'distanceleft': obs['distanceleft'],
-            'stepsafterroomchange': obs['stepsafterroomchange'],
-            'roomtype': obs['roomtype'],
-            # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
+
+        extra_obs = {
+            'distanceleft': extra_obs['distanceleft'],
+            'stepsafterroomchange': extra_obs['stepsafterroomchange'],
+            'roomtype': extra_obs['roomtype'],
+            'initial_distance': extra_obs['initial_distance']
+        }
+
         #print("obs: ", obs)
         for key, value in obs.items():
             space = self._obs_space[key]
@@ -558,7 +605,7 @@ class AI2ThorBase(embodied.Env):
             assert value in space, (key, value, value.dtype, value.shape, space)
         #print("obs: ", obs)
         #print("_O2")
-        return obs
+        return obs, extra_obs
 
     def load_random_habitat(self):
         #print("LRH1")
@@ -686,7 +733,7 @@ class AI2ThorBase(embodied.Env):
         place_with_rtn = (5.62, 3.5, 270)
         self.rnc.teleport_to(place_with_rtn)
         try:
-            self.current_target_point = self.choose_door_target(place_with_rtn)
+            self.current_target_point, _ = self.choose_door_target(place_with_rtn)
         except ValueError as err:
             print("O", err)
 
@@ -790,6 +837,19 @@ class AI2ThorBase(embodied.Env):
                 (self.astar_path, _, self.path_start, self.path_dest) = self.nu.get_last_path_and_params()
                 #print("AE: Path: ", self.astar_path)
 
+                # If we have several permissible destinations, then calculate A* path for all of them
+                if hasattr(self, 'all_door_targets'):
+                    self.all_astar_paths = []
+                    for dt in self.all_door_targets:
+                        target_point = Point(dt["pos"]["x"], dt["pos"]["z"])
+                        path_length = self.nu.get_path_cost_to_target_point(cur_pos,
+                                                                             target_point,
+                                                                             self.reachable_positions,
+                                                                             close_enough=self.plan_close_enough,
+                                                                             step=self.grid_size)
+                        (astar_path, _, _, _) = self.nu.get_last_path_and_params()
+                        self.all_astar_paths.append(astar_path)
+
                 if isinstance(self, DoorFinder):
                     # what is the room we start in
                     self.starting_room = room_this_point_belongs_to(self.rooms_in_habitat, point_for_room_search)
@@ -825,6 +885,13 @@ class AI2ThorBase(embodied.Env):
             self.current_path_length = self.initial_path_length
             self.best_path_length = self.initial_path_length
 
+            try:
+                self.initial_distance, _, _ = self.get_current_path_and_pose_state()
+            except ValueError as e:
+                self.initial_distance = np.float32(1000.0)
+                self._bad_spot = True
+                print('o', end='', sep='')
+
             #print("CH2")
             path_planned = True
 
@@ -857,11 +924,16 @@ class AI2ThorBase(embodied.Env):
         #print("G1")
         try:
             cur_pos = self.rnc.get_agent_pos_and_rotation()
-            self.current_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
-                                                                             self.current_target_point,
-                                                                             self.reachable_positions,
-                                                                             close_enough=self.plan_close_enough,
-                                                                             step=self.grid_size)
+            # we only need to re-calculate path length at every step, when we train. If we test, then we don't need to.
+            if self.choose_habitats_randomly_or_sequentially:
+                self.current_path_length = self.nu.get_path_cost_to_target_point(cur_pos,
+                                                                                 self.current_target_point,
+                                                                                 self.reachable_positions,
+                                                                                 close_enough=self.plan_close_enough,
+                                                                                 step=self.grid_size)
+            else:
+                self.current_path_length = 0.0
+
             self.current_path_length = np.float32(self.current_path_length)
         except ValueError as e:
             #print(f"ERROR: {e}")
@@ -887,7 +959,7 @@ class AI2ThorBase(embodied.Env):
         return self.current_path_length, room_type, cur_pos_xy
 
     # Determines if we have little enough left to call it an achieved goal
-    def have_we_arrived(self, epsilon = 0.0):
+    def have_we_arrived(self, epsilon = 0.0, eval=False):
         pass
 
     def close(self):
@@ -949,7 +1021,7 @@ class RoomCentreFinder(AI2ThorBase):
         return room_centre
 
     # Determines if we have little enough left to call it an achieved goal
-    def have_we_arrived(self, epsilon = 0.0):
+    def have_we_arrived(self, epsilon = 0.0, eval = False):
         return (self.current_path_length <= epsilon)
 
 ##
@@ -958,9 +1030,11 @@ class RoomCentreFinder(AI2ThorBase):
 class DoorFinder(AI2ThorBase):
     def __init__(self, actions, *args, **kwargs):
         super().__init__(actions, *args, **kwargs)
+        self.all_door_targets = None
 
     def choose_target_point(self, place_with_rtn = None, place_with_no_rtn = None):
-        return self.choose_door_target(place_with_rtn)
+        target_point, self.all_door_targets = self.choose_door_target(place_with_rtn)
+        return target_point
 
     ##
     # Go through all the doors and find the most appropriate as a target, then add a little bit extra so that
@@ -971,7 +1045,7 @@ class DoorFinder(AI2ThorBase):
         #print("CD1")
         current_target_point = None
         try:
-            current_target_point = self.nu.find_door_target(place_with_rtn,
+            current_target_point, all_door_targets = self.nu.find_door_target(place_with_rtn,
                                                             self.rooms_in_habitat,
                                                             self.reachable_positions,
                                                             self.habitat,
@@ -979,20 +1053,20 @@ class DoorFinder(AI2ThorBase):
                                                             step=self.grid_size, extend_path=True)
 
             # t1 = time.time()
-            pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
-                    (0.0, place_with_rtn[2], 0.0))  # place_with_rtn in AI2-Thor format
-            path_length = self.nu.get_path_cost_to_target_point(pose,
-                                                                current_target_point,
-                                                                self.reachable_positions,
-                                                                close_enough=self.plan_close_enough,
-                                                                step=self.grid_size)
+            # pose = ((place_with_rtn[0], 0.0, place_with_rtn[1]),
+            #         (0.0, place_with_rtn[2], 0.0))  # place_with_rtn in AI2-Thor format
+            # path_length = self.nu.get_path_cost_to_target_point(pose,
+            #                                                     current_target_point,
+            #                                                     self.reachable_positions,
+            #                                                     close_enough=self.plan_close_enough,
+            #                                                     step=self.grid_size)
 
             # if we've been successful so far, then we can now look up room type
             trg_pos_xy = (current_target_point.x, "", current_target_point.y)
             self.target_room = room_this_point_belongs_to(self.rooms_in_habitat, trg_pos_xy)
             # print("AE: path plan time: ", (time.time() - t1))
         except ValueError as e:
-            path_length = 0
+            #path_length = 0
             # print("AE: No Path Found", e)
             print('£', end='', sep='')
 
@@ -1010,8 +1084,19 @@ class DoorFinder(AI2ThorBase):
         #                    show_reachable_pos=False)
         # atu.visualise_path2(cur_path, reachable_positions, buf_unreachable_pos, rooms_in_habitat, start, dest, show_unreachable_pos=True)
         #print("CD2")
-        return current_target_point
+        return current_target_point, all_door_targets
 
     # Determines if we have little enough left to call it an achieved goal
-    def have_we_arrived(self, epsilon = 0.0):
-        return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)
+    def have_we_arrived(self, epsilon = 0.0, eval = False):
+        # If we're free to choose any door as destination (i.e., we are evaluating),
+        # then mark it as arrived if we're within distance of any door
+        if eval:
+            if self.all_door_targets != None:
+                for dt in self.all_door_targets:
+                    p1 = (dt['pos']['x'], dt['pos']['z'])
+                    p2 = (self.cur_pos_xy[0], self.cur_pos_xy[2])
+                    if euclidean_dist(p1, p2) <= epsilon:
+                        return True
+            return False
+        else: # otherwise we have a calculated path length to the specific door that we want and we need to compare that to allowed error
+            return (self.current_path_length <= epsilon or self.steps_in_new_room >= 3)

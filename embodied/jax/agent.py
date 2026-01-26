@@ -311,14 +311,14 @@ class Agent(embodied.Agent):
         outdir.mkdir()
       if self.n_updates == 100:
         elements.print(f'Start JAX profiler: {str(outdir)}', color='yellow')
-        jax.profiler.start_trace(str(outdir))
+        #jax.profiler.start_trace(str(outdir))
       if self.n_updates == 120:
         elements.print('Stop JAX profiler', color='yellow')
-        jax.profiler.stop_trace()
-        if copyto:
-          for subdir in elements.Path(outdir).glob('*'):
-            subdir.copy(copyto, recursive=True)
-          print(f'Copied profiler result {outdir} to {copyto}')
+        #jax.profiler.stop_trace()
+        #if copyto:
+        #  for subdir in elements.Path(outdir).glob('*'):
+        #    subdir.copy(copyto, recursive=True)
+        #  print(f'Copied profiler result {outdir} to {copyto}')
 
     return carry, return_outs, return_mets
 
