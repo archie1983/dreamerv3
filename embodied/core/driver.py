@@ -132,7 +132,7 @@ class Driver:
     #print("AE outs: ", outs)
     #if obs['is_terminal']:
     #  print(outs['cont'], ' # ', outs['distanceleft'], end='')
-    print(obs['distanceleft'], ' . ', outs['distanceleft'], " ", outs['cont'], " ", obs['is_terminal'])
+    #print(obs['distanceleft'], ' . ', outs['distanceleft'], " ", outs['cont'], " ", obs['is_terminal'])
     for i in range(self.length):
       trn = elements.tree.map(lambda x: x[i], trans)
       [fn(trn, i, **self.kwargs) for fn in self.callbacks]

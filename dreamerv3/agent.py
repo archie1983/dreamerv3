@@ -155,7 +155,7 @@ class Agent(embodied.jax.Agent):
     # AE: extracting from imagination
     dec_carry, dec_entry, recons = self.dec(dyn_carry, feat, reset, **kw)
 
-    breakpoint()
+    #breakpoint()
     # AE: And this is where I believe we pass the features to the actor (which we call pol here) and get out
     # the action (or a set of actions perhaps, which we call a policy).
     #breakpoint()
