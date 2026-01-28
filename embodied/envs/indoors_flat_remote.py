@@ -94,8 +94,8 @@ class Roomcentre(embodied.Wrapper):
 
         # Actions
         actions = actions.copy()
-        if "STOP" in actions:
-            actions.pop("STOP")  # remove STOP action because that will be treated differently
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self.rewards = [
             DistanceReductionReward(),
@@ -104,7 +104,7 @@ class Roomcentre(embodied.Wrapper):
         length = kwargs.pop('length', 36000)
         env = AI2ThorBase(actions, *args, **kwargs, env_type="RoomCentreFinder")
         self.unwrapped_env = env
-        env = TimeLimit(env, length)
+        env = embodied.wrappers.TimeLimit(env, length)
         super().__init__(env)
 
     def step(self, action):
@@ -135,8 +135,8 @@ class Door(embodied.Wrapper):
 
         # Actions
         actions = actions.copy()
-        if "STOP" in actions:
-            actions.pop("STOP")  # remove STOP action because that will be treated differently
+        #if "STOP" in actions:
+        #    actions.pop("STOP")  # remove STOP action because that will be treated differently
 
         self.rewards = [
             DistanceReductionReward(scale=1.0),
@@ -146,7 +146,7 @@ class Door(embodied.Wrapper):
         #print("AE: len", length)
         env = AI2ThorBase(actions, *args, **kwargs, env_type="DoorFinder")
         self.unwrapped_env = env
-        env = TimeLimit(env, length)
+        env = embodied.wrappers.TimeLimit(env, length)
         super().__init__(env)
         #print("DI2")
 

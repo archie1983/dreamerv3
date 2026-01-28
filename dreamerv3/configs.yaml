@@ -225,12 +225,12 @@ indoorsaeroomcentre_eval:
   run: {steps: 50000000, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 
-indoorsaeroomcentre_eval:
+indoorsremoteroomcentre_eval:
   task: indoorseval_remoteroomcentre
   run: {steps: 500, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
 
-indoorsaedoor_eval:
+indoorsremotedoor_eval:
   task: indoorseval_remotedoor
   run: {steps: 500, train_ratio: 16, from_checkpoint: '', eval_envs: 1, eval_eps: 1}
   script: eval_only
