@@ -1,7 +1,7 @@
 import logging, threading, elements, random, socket, cv2, embodied, traceback
 import numpy as np
-from ai2_thor_model_training.training_data_extraction import RobotNavigationControl
-from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
+#from ai2_thor_model_training.training_data_extraction import RobotNavigationControl
+from ai2_thor_model_training.ae_utils import (action_mapping,
                                               action_to_index, index_to_action, inverted_action_mapping,
                                               AI2THORUtils, get_path_length, get_centre_of_the_room,
                                               room_this_point_belongs_to, get_rooms_ground_truth,
@@ -9,11 +9,11 @@ from ai2_thor_model_training.ae_utils import (NavigationUtils, action_mapping,
                                               create_full_grid_from_room_layout, add_buffer_to_unreachable, RoomType, recv_data, send_data)
 #from ai2_thor_model_training.connection import recv_data, send_data
 
-import thortils as tt
-from thortils import launch_controller
-from thortils.agent import thor_reachable_positions
-from thortils.utils import roundany, getch
-from thortils.utils.math import sep_spatial_sample
+#import thortils as tt
+#from thortils import launch_controller
+#from thortils.agent import thor_reachable_positions
+#from thortils.utils import roundany, getch
+#from thortils.utils.math import sep_spatial_sample
 
 from shapely.geometry import Point
 import pickle, json
@@ -346,7 +346,7 @@ class AI2ThorBase(embodied.Env):
         self.grid_size = grid_size # how fine do we want the 2D grid to be.
         self.reward_close_enough = reward_close_enough # how close to the target is close enough for the purposes of reward. If we're this close or closer in simulation to the target, then consider it done
         self.plan_close_enough = plan_close_enough # how close to the target is close enough for the purposes of path planning. We may end up planning path to a point anywhere near the actual target by this much
-        self.nu = NavigationUtils(step=self.grid_size)
+        #self.nu = NavigationUtils(step=self.grid_size)
         # If we get into a bad spot from which for whatever reason we can't plan a path out, then we'll set this to
         # True and based on it will teleport to a new place when we see this set.
         self._bad_spot = False
@@ -667,8 +667,9 @@ class AI2ThorBase(embodied.Env):
         return self.rnd
 
     def close(self):
-        if (self.controller != None):
-            self.controller.stop()
+        #if (self.controller != None):
+        #    self.controller.stop()
+        pass
 
 if __name__ == "__main__":
     rc = Roomcentre(logdir = "aaa")
