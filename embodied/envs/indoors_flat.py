@@ -137,7 +137,7 @@ class DistanceReductionReward:
         self.prev_distance = None
         self.best_distance_so_far = None
 
-    def __call__(self, obs, extra_obs, action, inventory=None):
+    def __call__(self, obs, extra_obs, action):
         #print("D1")
         reward = 0.0
         #distance_left = obs['distance_left']
@@ -201,7 +201,7 @@ class TargetAchievedRewardForDoor:
         self.steps_in_new_room = steps_in_new_room
         self.epsilon = epsilon
 
-    def __call__(self, obs, extra_obs, action, inventory=None):
+    def __call__(self, obs, extra_obs, action):
         #print("T1")
         reward = 0
         if obs['is_first']:

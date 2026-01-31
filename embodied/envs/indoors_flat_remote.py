@@ -558,9 +558,9 @@ class AI2ThorBase(embodied.Env):
             #'distance_left': elements.Space(np.float32),
             #'steps_after_room_change': elements.Space(np.float32),
             #'room_type': elements.Space(np.float32),
-            'distanceleft': elements.Space(np.float32),
-            'stepsafterroomchange': elements.Space(np.float32),
-            'roomtype': elements.Space(np.float32),
+            #'distanceleft': elements.Space(np.float32),
+            #'stepsafterroomchange': elements.Space(np.float32),
+            #'roomtype': elements.Space(np.float32),
         }
 
     @property
@@ -644,9 +644,9 @@ class AI2ThorBase(embodied.Env):
             #'distance_left': obs['distance_left'],
             #'steps_after_room_change': obs['steps_after_room_change'],
             #'room_type': obs['room_type'],
-            'distanceleft': np.float32(obs['distanceleft']),
-            'stepsafterroomchange': np.float32(obs['stepsafterroomchange']),
-            'roomtype': np.float32(obs['roomtype']),
+            #'distanceleft': np.float32(obs['distanceleft']),
+            #'stepsafterroomchange': np.float32(obs['stepsafterroomchange']),
+            #'roomtype': np.float32(obs['roomtype']),
             # 'log/player_pos': np.array([player_x, player_y, player_z], np.float32),
         }
         #print("obs: ", obs)
