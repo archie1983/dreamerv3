@@ -109,7 +109,8 @@ class Roomcentre(embodied.Wrapper):
 
     def step(self, action):
         obs = self.env.step(action)
-        reward = sum([fn(obs) for fn in self.rewards])
+        #reward = sum([fn(obs) for fn in self.rewards])
+        reward = 0.0
         obs['reward'] = np.float32(reward)
 
         if obs['is_last'] and not self.unwrapped_env.env_retired and self.unwrapped_env.hab_set != "train":
@@ -153,7 +154,8 @@ class Door(embodied.Wrapper):
     def step(self, action):
         #print("A1")
         obs = self.env.step(action)
-        reward = sum([fn(obs) for fn in self.rewards])
+        #reward = sum([fn(obs) for fn in self.rewards])
+        reward = 0
         obs['reward'] = np.float32(reward)
         #print("A2")
 
@@ -584,23 +586,32 @@ class AI2ThorBase(embodied.Env):
         #print("action: ", action)
         try:
             #{"action": 0, "reset": False}
-            action_cmd = {"command": "ACT", "action_bits": action}
+            #action_cmd = {"command": "ACT", "action_bits": action}
+            print("AE0 ", action)
+            action_cmd = {"command": "ACT", "action_bits": {'action': int(action['action']), 'reset': bool(action['reset'])}}
+            print("AE1", action_cmd)
 
             # Send action
             send_data(self.client_socket, json.dumps(action_cmd).encode(self.encoding))
+            print("AE2")
 
             # Receive Metadata
             metadata_bytes = recv_data(self.client_socket)
+            print("AE3")
             if not metadata_bytes: raise Exception("Irregular client response to ACT")
             metadata = json.loads(metadata_bytes.decode(self.encoding))
+            print("AE4")
 
             # Receive Frame (JPEG bytes)
             frame_bytes = recv_data(self.client_socket)
+            print("AE5")
             if not frame_bytes: raise Exception("Image transfer from client failed")
 
             # Convert JPEG bytes back to numpy array (frame)
             np_array = np.frombuffer(frame_bytes, np.uint8)
+            print("AE6")
             frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
+            print("AE7")
 
             obs = metadata['obs']
             obs['pov'] = frame

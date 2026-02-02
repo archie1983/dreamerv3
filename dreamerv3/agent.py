@@ -102,7 +102,7 @@ class Agent(embodied.jax.Agent):
 
   @property
   def policy_keys(self):
-    return '^(enc|dyn|dec|pol)/'
+    return '^(enc|dyn|dec|pol|con)/'
 
   @property
   def ext_space(self):
@@ -185,7 +185,7 @@ class Agent(embodied.jax.Agent):
       out.update(elements.tree.flatdict(dict(
           enc=enc_entry, dyn=dyn_entry, dec=dec_entry)))
     print("AE out keys: ", out)
-    out['distanceleft'] = recons['distanceleft'].pred()
+    #out['distanceleft'] = recons['distanceleft'].pred()
     #return carry, act, out, cont
     #breakpoint()
     return carry, act, out
