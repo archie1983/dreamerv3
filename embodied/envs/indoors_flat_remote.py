@@ -446,7 +446,8 @@ class AI2ThorBase(embodied.Env):
                                "hab_set": self.hab_set,
                                "hab_min": self.hab_min,
                                "hab_max": self.hab_max,
-                               "env_type": self.env_type}
+                               "env_type": self.env_type,
+                               "agent_type": "rc"}
             send_data(self.client_socket, json.dumps(initial_command).encode(self.encoding))
 
             # Await READY response
