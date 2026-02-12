@@ -431,6 +431,7 @@ class AI2ThorBase(embodied.Env):
         message = f'Indoor Navigation action space ({len(self._action_values)}):'
         print(message, ', '.join(self._action_names))
         #print("C2")
+        self.COMPLEX_TASK = True
 
     def connect_to_server(self):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -441,13 +442,22 @@ class AI2ThorBase(embodied.Env):
             print("✅ Connected to server.")
 
             ## 1. SEND INITIAL COMMAND
-            initial_command = {"command": "INIT",
-                               "hab_id": "83",
-                               "hab_set": self.hab_set,
-                               "hab_min": self.hab_min,
-                               "hab_max": self.hab_max,
-                               "env_type": self.env_type,
-                               "agent_type": "rc"}
+            if self.COMPLEX_TASK:
+                initial_command = {"command": "INIT",
+                                   "hab_id": "83",
+                                   "hab_set": self.hab_set,
+                                   "hab_min": self.hab_min,
+                                   "hab_max": self.hab_max,
+                                   "env_type": self.env_type,
+                                   "agent_type": "rc"}
+            else:
+                initial_command = {"command": "INIT",
+                                   "hab_id": "83",
+                                   "hab_set": self.hab_set,
+                                   "hab_min": self.hab_min,
+                                   "hab_max": self.hab_max,
+                                   "env_type": self.env_type,
+                                   "agent_type": ""}
             send_data(self.client_socket, json.dumps(initial_command).encode(self.encoding))
 
             # Await READY response
@@ -631,8 +641,10 @@ class AI2ThorBase(embodied.Env):
                 with open(self.logdir + "/episode_data.jsonl", "a") as f:
                     f.write(json.dumps(episode_stats) + "\n")
 
-            with self.LOCK:
-                self.get_stored_hab_and_pos_remotely()
+            # For complex tasks, environment reset is done by the host machine, that runs the environment.
+            if not self.COMPLEX_TASK:
+                with self.LOCK:
+                    self.get_stored_hab_and_pos_remotely()
 
         # Now we turn the obs that was returned by the environment into obs that we use for training,
         # and to not confuse the two, make sure that 'pov' field is not there, because it should be 'image'.
