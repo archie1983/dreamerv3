@@ -419,6 +419,9 @@ class AI2ThorBase(embodied.Env):
         self._repeat = repeat
         self.isFirst = False
 
+        # If we have a complex task, then there are a few differences in how we want an agent to behave
+        self.COMPLEX_TASK = True
+
         # Here we connect remotely to an environment elsewhere, because we can't run AI2-Thor on a Jetson
         #with self.LOCK:
         self.client_socket = self.connect_to_server()
@@ -431,7 +434,6 @@ class AI2ThorBase(embodied.Env):
         message = f'Indoor Navigation action space ({len(self._action_values)}):'
         print(message, ', '.join(self._action_names))
         #print("C2")
-        self.COMPLEX_TASK = True
 
     def connect_to_server(self):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
