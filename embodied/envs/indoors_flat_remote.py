@@ -449,7 +449,7 @@ class AI2ThorBase(embodied.Env):
                                    "hab_min": self.hab_min,
                                    "hab_max": self.hab_max,
                                    "env_type": self.env_type,
-                                   "agent_type": "rc"}
+                                   "agent_type": "dr"}
             else:
                 initial_command = {"command": "INIT",
                                    "hab_id": "83",
