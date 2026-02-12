@@ -615,10 +615,10 @@ class AI2ThorBase(embodied.Env):
             print("AE7")
 
             obs = metadata['obs']
+            # Display results on the Jetson
+            print(f"-> Action metadata: {obs}")
             obs['pov'] = frame
             episode_stats = metadata['eps']
-            # Display results on the Jetson
-            print(f"-> Action metadata: {metadata}")
         except Exception as e:
             print(f"An error occurred: {e}")
             self.close_client_socket()
@@ -666,7 +666,7 @@ class AI2ThorBase(embodied.Env):
             space = self._obs_space[key]
             if not isinstance(value, np.ndarray):
                 value = np.array(value)
-            print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
+            #print("val: ", value, " space: ", space, " key: ", key, " (key, value, @dtype@, value.shape, space): ", (key, value, value.shape, space))
             assert value in space, (key, value, value.dtype, value.shape, space)
         #print("obs: ", obs)
         #print("_O2")
