@@ -600,31 +600,24 @@ class AI2ThorBase(embodied.Env):
         try:
             #{"action": 0, "reset": False}
             #action_cmd = {"command": "ACT", "action_bits": action}
-            print("AE0 ", action)
             action_cmd = {"command": "ACT", "action_bits": {'action': int(action['action']), 'reset': bool(action['reset'])}}
-            print("AE1", action_cmd)
+            print("AE1: ", action_cmd, " ", self._step)
 
             # Send action
             send_data(self.client_socket, json.dumps(action_cmd).encode(self.encoding))
-            print("AE2")
 
             # Receive Metadata
             metadata_bytes = recv_data(self.client_socket)
-            print("AE3")
-            if not metadata_bytes: raise Exception("Irregular client response to ACT")
+            if not metadata_bytes: raise Exception("Null received in response to ACT")
             metadata = json.loads(metadata_bytes.decode(self.encoding))
-            print("AE4")
 
             # Receive Frame (JPEG bytes)
             frame_bytes = recv_data(self.client_socket)
-            print("AE5")
             if not frame_bytes: raise Exception("Image transfer from client failed")
 
             # Convert JPEG bytes back to numpy array (frame)
             np_array = np.frombuffer(frame_bytes, np.uint8)
-            print("AE6")
             frame = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
-            print("AE7")
 
             obs = metadata['obs']
             # Display results on the Jetson
@@ -633,7 +626,7 @@ class AI2ThorBase(embodied.Env):
             episode_stats = metadata['eps']
         except Exception as e:
             print(f"An error occurred: {e}")
-            self.close_client_socket()
+            #self.close_client_socket()
 
         if action['reset']:
             print('R', end='', sep='')
