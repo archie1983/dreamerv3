@@ -486,7 +486,7 @@ class AI2ThorBase(embodied.Env):
             print(f"❌ Connection Refused. Ensure server is running at {self.server_ip}:{self.port} and firewall is open.")
             self.close_client_socket()
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred4: {e}")
             self.close_client_socket()
 
         return self.client_socket
@@ -522,7 +522,7 @@ class AI2ThorBase(embodied.Env):
             # Example of how to access other data:
             # print(f"Agent Position: {metadata['agent']['position']}")
             except Exception as e:
-                print(f"An error occurred: {e}")
+                print(f"An error occurred1: {e}")
                 self.close_client_socket()
 
     def get_stored_hab_and_pos_remotely(self):
@@ -555,7 +555,7 @@ class AI2ThorBase(embodied.Env):
             # Example of how to access other data:
             # print(f"Agent Position: {metadata['agent']['position']}")
             except Exception as e:
-                print(f"An error occurred: {e}")
+                print(f"An error occurred2: {e}")
                 self.close_client_socket()
 
     def close_client_socket(self):
@@ -625,7 +625,7 @@ class AI2ThorBase(embodied.Env):
             obs['pov'] = frame
             episode_stats = metadata['eps']
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred3: {e}")
             #self.close_client_socket()
 
         if action['reset']:
