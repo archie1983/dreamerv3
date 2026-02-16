@@ -305,7 +305,7 @@ class AI2ThorBase(embodied.Env):
                  plan_close_enough=0.25,
                  env_index=-1,
                  env_type="RoomCentreFinder",
-                 server_ip='192.168.0.32',
+                 server_ip='192.168.1.100',
                  port=9999,
                  encoding='utf-8'
                  ):
