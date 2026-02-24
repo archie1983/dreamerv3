@@ -305,8 +305,9 @@ class AI2ThorBase(embodied.Env):
                  plan_close_enough=0.25,
                  env_index=-1,
                  env_type="RoomCentreFinder",
+                 agent_type="rc",
                  server_ip='192.168.1.100',
-                 port=9999,
+                 server_port=9999,
                  encoding='utf-8'
                  ):
         '''
@@ -375,7 +376,7 @@ class AI2ThorBase(embodied.Env):
 
         # Remote connection stuff
         self.server_ip = server_ip
-        self.port = port
+        self.port = server_port
         self.encoding = encoding
         self.client_socket = None
 
@@ -386,6 +387,7 @@ class AI2ThorBase(embodied.Env):
         self.hab_set = hab_set
         self.env_type = env_type
         self.places_per_hab = places_per_hab
+        self.agent_type = agent_type
 
         self.choose_habitats_randomly_or_sequentially = True
         if (hab_set == "train"):
@@ -451,7 +453,7 @@ class AI2ThorBase(embodied.Env):
                                    "hab_min": self.hab_min,
                                    "hab_max": self.hab_max,
                                    "env_type": self.env_type,
-                                   "agent_type": "dr"}
+                                   "agent_type": self.agent_type}
             else:
                 initial_command = {"command": "INIT",
                                    "hab_id": "83",

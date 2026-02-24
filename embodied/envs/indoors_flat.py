@@ -156,23 +156,23 @@ class DistanceReductionReward:
                 #print("BIG REW: ", reward)
                 #print("r", reward, end="", sep="")
                 print("r", end="", sep="")
-            elif self.best_distance_so_far == distance_left:
-                '''
-                if no improvement, then bigger penalty. No movement needs to be discouraged
-                '''
-                reward = -0.25
+            # elif self.best_distance_so_far == distance_left:
+            #     '''
+            #     if no improvement, then bigger penalty. No movement needs to be discouraged
+            #     '''
+            #     reward = -0.25
             elif self.best_distance_so_far < distance_left and self.prev_distance < distance_left:
                 '''
                 if we have moved away from the target, then penalty by the reduction
                 '''
                 #reward = self.scale * (self.prev_distance - distance_left)
                 reward = -0.5
-            elif self.best_distance_so_far < distance_left and self.prev_distance > distance_left:
+            elif self.best_distance_so_far <= distance_left and self.prev_distance > distance_left:
                 '''
                 if we have improved our position from last time, but not yet the best path, then small reward
                 '''
                 reward = 0.25
-            elif self.best_distance_so_far < distance_left and self.prev_distance == distance_left:
+            elif self.best_distance_so_far <= distance_left and self.prev_distance == distance_left:
                 '''
                 if no improvement since last time, then penalty to discourage not moving
                 '''
