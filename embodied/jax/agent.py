@@ -272,7 +272,7 @@ class Agent(embodied.Agent):
     # AE: popping continuity prob here, because we don't need to train on it- it's already handled by the architecture.
     # The only reason why we have it here at all, is so that we can extract it in driver.py
     cont = data.pop('cont')
-    distanceleft = data.pop('distanceleft')
+    #distanceleft = data.pop('distanceleft')
     assert sorted(data.keys()) == sorted(self.spaces.keys()), (
         sorted(data.keys()), sorted(self.spaces.keys()))
     allo = {k: v for k, v in self.params.items() if k in self.policy_keys}
@@ -328,7 +328,7 @@ class Agent(embodied.Agent):
     # AE: popping continuity prob here, because we don't need to include it in the report- it's already handled elsewhere.
     # The only reason why we have it here at all, is so that we can extract it in driver.py
     cont = data.pop('cont')
-    distanceleft = data.pop('distanceleft')
+    #distanceleft = data.pop('distanceleft')
     assert sorted(data.keys()) == sorted(self.spaces.keys()), (
         sorted(data.keys()), sorted(self.spaces.keys()))
     with self.train_lock:
