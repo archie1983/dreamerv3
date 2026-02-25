@@ -37,7 +37,6 @@ dependencies:
   - pip:
       - absl-py==2.3.1
       - addict==2.4.0
-      - ai2-thor-model-training==1.0.1
       - ai2thor==5.0.0
       - ai2thor-colab==0.1.2
       - annotated-types==0.7.0
