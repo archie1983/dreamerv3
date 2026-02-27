@@ -1,123 +1,77 @@
-# Mastering Diverse Domains through World Models
+# Learning Semantic Navigation Primitives for human habitats using DreamerV3 world model
 
-A reimplementation of [DreamerV3][paper], a scalable and general reinforcement
-learning algorithm that masters a wide range of applications with fixed
-hyperparameters.
+This work is based on the original DreamerV3 code, which was developed by Danijar Hafner et al.
+To read the original DreamerV3 paper and explore the original code, please follow Danijar's github 
+repository: [Original DreamerV3][original_dreamerv3]
 
-![DreamerV3 Tasks](https://user-images.githubusercontent.com/2111293/217647148-cbc522e2-61ad-4553-8e14-1ecdc8d9438b.gif)
+Our contributions include integration of AI2-Thor environment with DreamerV3 to allow using
+ProcThor-10k dataset for training world models exhibiting useful behaviours. We call such behaviours
+Semantic Navigation Primitives (SNPs).
 
-If you find this code useful, please reference in your paper:
+## SNP DreamerV3
 
+The quickest way to try it out, is to first clone this repository recursively with all the
+submodule dependencies, install all required packages in a dedicated Anaconda environment
+and then launch it using one of the commands below.
+
+### Download and installation:
 ```
-@article{hafner2025dreamerv3,
-  title={Mastering diverse control tasks through world models},
-  author={Hafner, Danijar and Pasukonis, Jurgis and Ba, Jimmy and Lillicrap, Timothy},
-  journal={Nature},
-  pages={1--7},
-  year={2025},
-  publisher={Nature Publishing Group}
-}
-```
-
-To learn more:
-
-- [Research paper][paper]
-- [Project website][website]
-- [Twitter summary][tweet]
-
-## DreamerV3
-
-DreamerV3 learns a world model from experiences and uses it to train an actor
-critic policy from imagined trajectories. The world model encodes sensory
-inputs into categorical representations and predicts future representations and
-rewards given actions.
-
-![DreamerV3 Method Diagram](https://user-images.githubusercontent.com/2111293/217355673-4abc0ce5-1a4b-4366-a08d-64754289d659.png)
-
-DreamerV3 masters a wide range of domains with a fixed set of hyperparameters,
-outperforming specialized methods. Removing the need for tuning reduces the
-amount of expert knowledge and computational resources needed to apply
-reinforcement learning.
-
-![DreamerV3 Benchmark Scores](https://github.com/danijar/dreamerv3/assets/2111293/0fe8f1cf-6970-41ea-9efc-e2e2477e7861)
-
-Due to its robustness, DreamerV3 shows favorable scaling properties. Notably,
-using larger models consistently increases not only its final performance but
-also its data-efficiency. Increasing the number of gradient steps further
-increases data efficiency.
-
-![DreamerV3 Scaling Behavior](https://user-images.githubusercontent.com/2111293/217356063-0cf06b17-89f0-4d5f-85a9-b583438c98dd.png)
-
-# Instructions
-
-The code has been tested on Linux and Mac and requires Python 3.11+.
-
-## Docker
-
-You can either use the provided `Dockerfile` that contains instructions or
-follow the manual instructions below.
-
-## Manual
-
-Install [JAX][jax] and then the other dependencies:
-
-```sh
-pip install -U -r requirements.txt
+git clone --recursive https://github.com/archie1983/snp_dreamerv3
+cd snp_dreamerv3
+conda create -n snp_d3 python=3.11
+conda activate snp_d3
+conda env update -f dreamer3.yml -n snp_d3
+cd ai2_thor_model_training_src
+pip install -e .
+cd thortils
+pip install -e .
+cd ../../
 ```
 
-Training script:
+### Training SNP to find room center:
+The following command will launch indoors room center training, using 
+ProcThor-10K train dataset. It will use 2 environment instances and it will have 
+a batch size of 2. If your system has enough resources to use more environments 
+and have a higher batch size, then your results will be better with these 
+numbers higher. The training results will be stored in ~/logdir/train_results.
 
-```sh
-python dreamerv3/main.py \
-  --logdir ~/logdir/dreamer/{timestamp} \
-  --configs crafter \
-  --run.train_ratio 32
+```
+python dreamerv3/main.py --configs indoorsrc --run.envs 2 --batch_size 2 --logdir ~/logdir/train_results
 ```
 
-To reproduce results, train on the desired task using the corresponding config,
-such as `--configs atari --task atari_pong`.
-
-View results:
-
-```sh
-pip install -U scope
-python -m scope.viewer --basedir ~/logdir --port 8000
+### Training SNP to find a door and walk through it:
+The following command will do the same as above, but for the SNP that finds a door
+and transits through it.
+```
+python dreamerv3/main.py --configs indoorsdoor --run.envs 2 --batch_size 2 --logdir ~/logdir/train_results
 ```
 
-Scalar metrics are also writting as JSONL files.
+### Evaluating a trained room center finding SNP
+The following command will load a previously trained checkpoint from
+"~/logdir/train_results/rc_ckpt/" and evaluate it on the
+ProcThor-10K test dataset. It will store data in the "rc_eval_results" directory, which has
+to exist prior. It will use 3 AI2-Thor environments and process the episodes in parallel.
+The evaluation code has been tested with 3 environments only. If you need more or less,
+you may need to adapt the way the test data set is split between the environments.
+This is done in "embodied/envs/indoors_flat.py", in the init function of AI2ThorBase class.
+```
+python dreamerv3/main.py --configs indoorsaeroomcentre_eval --run.envs 3 --batch_size 3 --run.from_checkpoint "~/logdir/train_results/rc_ckpt/" --logdir "rc_eval_results"
+```
 
-# Tips
+### Evaluating a trained door finding SNP
+The following will do the same as above, but for door finding SNP, storing results in "door_eval_results" and
+loading checkpoint from "~/logdir/train_results/door_ckpt/".
+```
+python dreamerv3/main.py --configs indoorsaedoor_eval --run.envs 3 --batch_size 3 --run.from_checkpoint "~/logdir/train_results/door_ckpt/" --logdir "door_eval_results"
+```
 
-- All config options are listed in `dreamerv3/configs.yaml` and you can
-  override them as flags from the command line.
-- The `debug` config block reduces the network size, batch size, duration
-  between logs, and so on for fast debugging (but does not learn a good model).
-- By default, the code tries to run on GPU. You can switch to CPU or TPU using
-  the `--jax.platform cpu` flag.
-- You can use multiple config blocks that will override defaults in the
-  order they are specified, for example `--configs crafter size50m`.
-- By default, metrics are printed to the terminal, appended to a JSON lines
-  file, and written as Scope summaries. Other outputs like WandB and
-  TensorBoard can be enabled in the training script.
-- If you get a `Too many leaves for PyTreeDef` error, it means you're
-  reloading a checkpoint that is not compatible with the current config. This
-  often happens when reusing an old logdir by accident.
-- If you are getting CUDA errors, scroll up because the cause is often just an
-  error that happened earlier, such as out of memory or incompatible JAX and
-  CUDA versions. Try `--batch_size 1` to rule out an out of memory error.
-- Many environments are included, some of which require installing additional
-  packages. See the `Dockerfile` for reference.
-- To continue stopped training runs, simply run the same command line again and
-  make sure that the `--logdir` points to the same directory.
+### Potential problems
+The code is using headless AI2-Thor for training and evaluation. It expects 2 GPUs:
+1 for generating AI2-Thor imagery and the other for training. This can be changed in:
+"embodied/envs/indoors_flat.py", the "load_habitat" function, by changing parameters, that are
+passed to "launch_controller".
 
-# Disclaimer
+Please get in touch, using the GitHub Discussions or Issues sections, should you require
+more support to get it running.
 
-This repository contains a reimplementation of DreamerV3 based on the open
-source DreamerV2 code base. It is unrelated to Google or DeepMind. The
-implementation has been tested to reproduce the official results on a range of
-environments.
-
-[jax]: https://github.com/google/jax#pip-installation-gpu-cuda
-[paper]: https://arxiv.org/pdf/2301.04104
-[website]: https://danijar.com/dreamerv3
-[tweet]: https://twitter.com/danijarh/status/1613161946223677441
+[original_dreamerv3]: https://github.com/danijar/dreamerv3
