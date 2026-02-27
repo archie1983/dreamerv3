@@ -9,7 +9,6 @@ dependencies:
   - _openmp_mutex=5.1=1_gnu
   - bzip2=1.0.8=h5eee18b_6
   - ca-certificates=2025.6.15=hbd8a1cb_0
-  - expat=2.7.1=h6a678d5_0
   - ld_impl_linux-64=2.40=h12ee557_0
   - libffi=3.4.4=h6a678d5_1
   - libgcc=15.1.0=h767d61c_3
@@ -38,7 +37,6 @@ dependencies:
   - pip:
       - absl-py==2.3.1
       - addict==2.4.0
-      - ai2-thor-model-training==1.0.1
       - ai2thor==5.0.0
       - ai2thor-colab==0.1.2
       - annotated-types==0.7.0
@@ -63,7 +61,6 @@ dependencies:
       - cycler==0.12.1
       - dash==3.1.1
       - decorator==4.4.2
-      - deepmind-lab==1.0
       - deprecated==1.2.18
       - dm-env==1.6
       - dm-tree==0.1.9
